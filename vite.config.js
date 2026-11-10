@@ -2551,7 +2551,9 @@ async function fetchOverpassPayload(body, maxResponseBytes = OVERPASS_MAX_RESPON
         lastError = new Error(`Overpass runtime error (${endpoint})`);
         continue;
       }
-      if (status >= 500) {
+      // Any non-2xx (e.g. overpass-api.de's nginx 406) is a mirror failure,
+      // not an answer: try the next mirror and never cache it.
+      if (status < 200 || status >= 300) {
         lastError = new Error(`Overpass upstream returned ${status} (${endpoint})`);
         continue;
       }
@@ -7339,6 +7341,8 @@ export default defineConfig(({ mode }) => {
   }
   const env = { ...process.env };
   return {
+    // GitHub Pages serves the site from /<repo>/; set PAGES_BASE there.
+    base: env.PAGES_BASE || '/',
     plugins: [
       cesium(),
       openSkyProxy(),

@@ -136,3 +136,8 @@ Douglas-Peucker simplification, 6-decimal rounding).
 ## In-app attribution
 
 The required Google Maps / Cesium credit renders on the on-globe credit line (`#cesium-credits`, bottom-left) and must stay visible — including in clean-view and recording modes (the whole line, logo + "Google Maps" + the "Data attribution" link, stays on screen; only the GEV panels/HUD fade). The layer-specific credits (adsb.lol, TeleGeography, OSM datacenters/dams/roads, NASA FIRMS, CelesTrak, USGS, City of Austin, GBFS, Radio Browser, OpenSky, AISStream) are registered into the expandable **"Data attribution"** popover on that credit line via `viewer.creditDisplay.addStaticCredit(new Cesium.Credit(html, /* showOnScreen */ false))` — see `src/data/dataCredits.js`. When you add a new data source, add its license and attribution to this file **and** append an entry to `DATA_CREDITS` in `src/data/dataCredits.js` so it surfaces in the app.
+
+## Sightline data step (2026-11-11)
+- Tel Aviv-Yafo municipal GIS, layer 513 "מבנים" (gisn.tel-aviv.gov.il IView2 MapServer): building height `gova_simplex_2019`, floors `ms_komot`, ground `min_height`. Check the city's open-data terms before paid use.
+- AWS Terrain Tiles (Terrarium, s3 elevation-tiles-prod): SRTM/Copernicus-based ground, sea floor clamped to 0. Attribution required (Mapzen/AWS terrain sources).
+- Not used yet: Meta/WRI 1 m canopy height (CC BY 4.0), needs a server proxy (no CORS). Overture buildings: same as OSM in Tel Aviv.

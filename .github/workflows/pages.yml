@@ -1,0 +1,64 @@
+# Builds Sightline and publishes it to GitHub Pages on every push to main.
+# The Google key comes from the repository secret GOOGLE_MAPS_API_KEY. It ends
+# up in the public JavaScript (every browser map key does), so it must be
+# locked to this site's address and capped in Google Cloud: see DEPLOY.md.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Check the key secret is set
+        env:
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+        run: |
+          if [ -z "$GOOGLE_MAPS_API_KEY" ]; then
+            echo "::error::Add the GOOGLE_MAPS_API_KEY repository secret first (after locking the key to this site, see DEPLOY.md)."
+            exit 1
+          fi
+      - run: npm ci
+      - name: Build
+        env:
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          PAGES_BASE: /${{ github.event.repository.name }}/
+        run: |
+          npx vite build
+          # vite-plugin-cesium writes its files under dist/<base>/; move them up.
+          if [ -d "dist/${{ github.event.repository.name }}/cesium" ]; then
+            mv "dist/${{ github.event.repository.name }}/cesium" dist/cesium
+            rmdir "dist/${{ github.event.repository.name }}"
+          fi
+          test -f dist/cesium/Cesium.js
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

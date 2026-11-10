@@ -1,0 +1,498 @@
+.threat-panel {
+  --t-bg: rgba(10, 14, 20, 0.9);
+  --t-line: rgba(140, 220, 255, 0.22);
+  --t-ink: #e8eef5;
+  --t-dim: #8fa0b3;
+  --t-accent: #5fd4ff;
+  --t-high: #ff3b30;
+  --t-med: #ff8a00;
+  --t-low: #ffd23f;
+  position: fixed;
+  top: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(360px, calc(100vw - 32px));
+  z-index: 60;
+  background: var(--t-bg);
+  border: 1px solid var(--t-line);
+  border-radius: 10px;
+  color: var(--t-ink);
+  font: 13px/1.4 "IBM Plex Sans", system-ui, sans-serif;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+}
+.threat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--t-line);
+}
+.threat-title {
+  font: 600 12px/1 "IBM Plex Mono", monospace;
+  letter-spacing: 0.18em;
+  color: var(--t-accent);
+}
+.threat-collapse {
+  background: none;
+  border: 0;
+  color: var(--t-dim);
+  font-size: 16px;
+  cursor: pointer;
+  width: 24px;
+}
+.threat-panel.collapsed .threat-body { display: none; }
+.threat-panel.collapsed .threat-head { border-bottom: 0; }
+.threat-body { padding: 12px; display: grid; gap: 10px; }
+.threat-panel [hidden] { display: none !important; }
+.threat-panel button {
+  background: rgba(95, 212, 255, 0.12);
+  border: 1px solid rgba(95, 212, 255, 0.4);
+  color: var(--t-ink);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font: 600 12px/1 "IBM Plex Mono", monospace;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.threat-panel button:hover { background: rgba(95, 212, 255, 0.22); }
+.threat-panel button:disabled { opacity: 0.5; cursor: wait; }
+.threat-intro { display: grid; gap: 4px; }
+.threat-q { margin: 0; font: 600 17px/1.25 "IBM Plex Sans", system-ui, sans-serif; color: var(--t-ink); }
+.threat-hint { margin: 0; color: var(--t-dim); font-size: 12.5px; }
+.threat-panel.has-result .threat-intro { display: none; }
+.threat-search { position: relative; }
+.threat-search-icon {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  color: var(--t-dim); font-size: 17px; pointer-events: none;
+}
+.threat-search input {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--t-line);
+  border-radius: 8px;
+  color: var(--t-ink);
+  padding: 11px 34px 11px 32px;
+  font: 15px/1.2 "IBM Plex Sans", system-ui, sans-serif;
+}
+.threat-search input:focus { outline: none; border-color: var(--t-accent); background: rgba(255, 255, 255, 0.1); }
+.threat-panel .threat-search-clear {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  background: none; border: 0; color: var(--t-dim); font-size: 18px; padding: 6px 9px;
+}
+.threat-suggest {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 2;
+  list-style: none; margin: 0; padding: 4px;
+  background: #0d131b; border: 1px solid var(--t-line); border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+.threat-sugg { display: grid; gap: 1px; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
+.threat-sugg[aria-selected="true"], .threat-sugg:hover { background: rgba(95, 212, 255, 0.14); }
+.threat-sugg-title { font-weight: 600; }
+.threat-sugg-sub { font-size: 12px; color: var(--t-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.threat-alt { display: flex; align-items: center; gap: 10px; }
+.threat-panel .threat-locate { display: inline-flex; align-items: center; gap: 8px; padding: 9px 12px; }
+.threat-locate-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--t-accent); box-shadow: 0 0 0 3px rgba(95, 212, 255, 0.25);
+}
+.threat-locate.busy .threat-locate-dot { animation: threat-pulse 1s ease-in-out infinite; }
+@keyframes threat-pulse { 50% { box-shadow: 0 0 0 7px rgba(95, 212, 255, 0); } }
+.threat-or { color: var(--t-dim); font-size: 12.5px; }
+.threat-panel.busy .threat-status::before {
+  content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; vertical-align: -1px;
+  border: 2px solid var(--t-accent); border-right-color: transparent; border-radius: 50%;
+  animation: threat-spin 0.8s linear infinite;
+}
+@keyframes threat-spin { to { transform: rotate(360deg); } }
+.threat-place { display: grid; gap: 2px; }
+.threat-place-kicker { font: 600 10px/1 "IBM Plex Mono", monospace; letter-spacing: 0.14em; text-transform: uppercase; color: var(--t-dim); }
+.threat-place-name { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.threat-summary { margin: 0; color: var(--t-ink); }
+.threat-summary b { font-family: "IBM Plex Mono", monospace; }
+.threat-settings { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--t-dim); font-size: 12.5px; }
+.threat-seg { display: inline-flex; border: 1px solid var(--t-line); border-radius: 7px; overflow: hidden; }
+.threat-panel .threat-seg button {
+  border: 0; border-radius: 0; background: none; color: var(--t-dim); padding: 6px 9px; font-weight: 500;
+}
+.threat-panel .threat-seg button[aria-checked="true"] { background: rgba(95, 212, 255, 0.2); color: var(--t-ink); }
+.threat-toggle { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+.threat-status { color: var(--t-dim); font-size: 12.5px; }
+.threat-status[hidden] { display: none; }
+.threat-status[data-kind="warn"] { color: var(--t-low); }
+.threat-results { display: grid; gap: 10px; border-top: 1px solid var(--t-line); padding-top: 10px; }
+.threat-big { font-size: 13px; color: var(--t-dim); }
+.threat-num { font: 700 26px/1 "IBM Plex Mono", monospace; color: var(--t-ink); }
+.threat-bands { display: flex; gap: 6px; flex-wrap: wrap; }
+.threat-chip {
+  font-size: 11px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+.threat-chip b { font-family: "IBM Plex Mono", monospace; }
+.threat-chip.high { color: var(--t-high); }
+.threat-chip.medium { color: var(--t-med); }
+.threat-chip.low { color: var(--t-low); }
+.threat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  max-height: 26vh;
+  overflow: auto;
+}
+.threat-item {
+  display: grid;
+  gap: 1px;
+  padding: 6px 8px 6px 10px;
+  border-left: 3px solid var(--t-dim);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0 5px 5px 0;
+  cursor: pointer;
+}
+.threat-item:hover, .threat-item:focus { background: rgba(255, 255, 255, 0.09); outline: none; }
+.threat-item.high { border-left-color: var(--t-high); }
+.threat-item.medium { border-left-color: var(--t-med); }
+.threat-item.low { border-left-color: var(--t-low); }
+.threat-item-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.threat-item-meta { font: 11px/1.3 "IBM Plex Mono", monospace; color: var(--t-dim); }
+.threat-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.threat-panel .threat-pdf { flex: 1 0 100%; background: var(--t-accent); border-color: var(--t-accent); color: #0b0e13; }
+.threat-panel .threat-pdf:hover { filter: brightness(1.08); background: var(--t-accent); }
+.threat-actions button { flex: 1; padding-left: 6px; padding-right: 6px; }
+.threat-panel .threat-clear { flex: 0 0 auto; background: none; border-color: var(--t-line); color: var(--t-dim); }
+.threat-note { margin: 0; font-size: 11px; color: var(--t-dim); }
+
+/* Threat-map mode: the public site shows only the map and this panel. */
+body.threat-mode #title-bar,
+body.threat-mode #style-indicator,
+body.threat-mode #top-center-actions,
+body.threat-mode #traffic-sync-chip,
+body.threat-mode #cctv-sync-chip,
+body.threat-mode #command-dock,
+body.threat-mode #left-panel-stack,
+body.threat-mode #right-context-rail,
+body.threat-mode #intel-hud,
+body.threat-mode #first-run-launcher,
+body.threat-mode #orbit-indicator,
+body.threat-mode #scene-runtime,
+body.threat-mode #view-switcher,
+body.threat-mode #scope-mask {
+  display: none !important;
+}
+body.threat-mode .threat-panel {
+  top: 16px;
+  left: 16px;
+  transform: none;
+  max-height: calc(100vh - 64px);
+  overflow: auto;
+}
+@media (max-width: 600px) {
+  body.threat-mode .threat-panel {
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: 58vh;
+    overflow: auto;
+  }
+  body.threat-mode .threat-body { padding: 10px; gap: 8px; }
+  body.threat-mode .threat-list { max-height: 15vh; }
+  body.threat-mode .threat-num { font-size: 22px; }
+  body.threat-mode .threat-note { display: none; }
+  body.threat-mode .threat-panel.has-result .threat-alt { display: none; }
+  body.threat-mode .threat-list { max-height: 13vh; }
+}
+
+/* Camera buttons, bottom-right. */
+.threat-cam {
+  position: fixed; right: 16px; bottom: 40px; z-index: 60;
+  display: flex; flex-direction: column; gap: 8px; align-items: center;
+}
+.threat-cam button {
+  width: 40px; height: 40px; border-radius: 10px;
+  background: rgba(10, 14, 20, 0.88); border: 1px solid rgba(140, 220, 255, 0.22);
+  color: #e8eef5; font: 600 15px/1 "IBM Plex Mono", monospace; cursor: pointer;
+  backdrop-filter: blur(8px); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  display: grid; place-items: center; padding: 0;
+}
+.threat-cam button:hover { background: rgba(30, 44, 60, 0.95); }
+.threat-cam button[hidden] { display: none; }
+.threat-cam .threat-cam-tilt { font-size: 12px; }
+.threat-cam .threat-cam-spot { color: #ff6b5e; font-size: 20px; }
+.threat-cam-north span { display: inline-block; color: #ff6b5e; font-size: 13px; transition: transform 0.1s linear; }
+.threat-cam-north span::before { content: "▲"; display: block; font-size: 8px; line-height: 6px; text-align: center; }
+.threat-cam-zoom { display: flex; flex-direction: column; border-radius: 10px; overflow: hidden; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); }
+.threat-cam-zoom button { border-radius: 0; box-shadow: none; font-size: 20px; }
+.threat-cam-zoom button + button { border-top: 0; }
+.threat-cam-turn { display: flex; flex-direction: column; border-radius: 10px; overflow: hidden; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); }
+.threat-cam-turn button { border-radius: 0; box-shadow: none; font-size: 19px; }
+.threat-cam-turn button + button { border-top: 0; }
+.threat-hint-chip {
+  /* centred in the open map, right of the 360px panel, clear of the camera buttons */
+  position: fixed; left: calc(50% + 188px); bottom: 18px; transform: translateX(-50%); z-index: 59;
+  max-width: calc(100vw - 376px - 140px);
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 8px 9px 14px; border-radius: 999px;
+  background: rgba(10, 14, 20, 0.9); border: 1px solid rgba(140, 220, 255, 0.22);
+  color: #c9d4e0; font: 13px/1.3 "IBM Plex Sans", system-ui, sans-serif; white-space: nowrap;
+  backdrop-filter: blur(8px);
+}
+.threat-hint-chip b { color: #fff; font-weight: 600; }
+.threat-hint-chip button { background: none; border: 0; color: #8fa0b3; font-size: 16px; cursor: pointer; padding: 0 6px; }
+body:not(.threat-mode) .threat-cam, body:not(.threat-mode) .threat-hint-chip { display: none; }
+@media (max-width: 600px) {
+  .threat-cam { right: 12px; bottom: 100px; }
+  .threat-hint-chip { white-space: normal; width: auto; max-width: none; left: 12px; right: 76px; transform: none; bottom: 100px; border-radius: 14px; font-size: 12px; }
+}
+
+/* ── Landing (first open, no share link): Vilya-style hero over a live example ── */
+.sl-hero-head, .sl-explore { display: none; }
+.sl-dark .threat-panel, body.sl-dark .threat-hint-chip { --t-accent: #ff6b4a; }
+body.landing .threat-cam, body.landing .threat-hint-chip { display: none !important; }
+body.threat-mode.landing .threat-panel {
+  top: 0; left: 0; bottom: 0; right: auto; transform: none;
+  width: min(540px, 100vw); max-height: none; overflow: auto;
+  box-sizing: border-box; padding: 64px 56px 44px;
+  background: linear-gradient(90deg, rgba(4, 5, 8, 0.94) 0%, rgba(4, 5, 8, 0.8) 62%, rgba(4, 5, 8, 0) 100%);
+  border: 0; border-radius: 0; box-shadow: none; backdrop-filter: none;
+}
+body.landing .threat-head,
+body.landing .threat-intro,
+body.landing .threat-results,
+body.landing .threat-or,
+body.landing .threat-status:empty { display: none !important; }
+body.landing .threat-body { padding: 0; gap: 18px; display: flex; flex-direction: column; min-height: 100%; }
+body.landing .sl-hero-head { display: grid; gap: 16px; }
+.sl-kicker { font: 600 12px/1 "JetBrains Mono", monospace; letter-spacing: 0.24em; color: var(--t-accent); }
+.sl-h1 {
+  margin: 0; color: #fff;
+  font: 800 clamp(44px, 5.6vw, 72px)/0.96 "Inter Tight", "Inter", system-ui, sans-serif;
+  letter-spacing: -0.03em;
+}
+.sl-h1 em { font-style: normal; color: #ff3b30; }
+.sl-lede { margin: 0; max-width: 410px; color: #a9b4c2; font: 400 16px/1.5 "Inter", system-ui, sans-serif; }
+body.landing .threat-search { max-width: 420px; }
+body.landing .threat-search input { font-size: 17px; padding: 15px 40px 15px 40px; border-radius: 12px; background: rgba(255, 255, 255, 0.08); }
+body.landing .threat-search-icon { left: 14px; }
+body.landing .threat-alt { flex-wrap: wrap; gap: 6px 14px; }
+body.landing .sl-explore { display: inline-flex; }
+body.landing .threat-panel .sl-explore {
+  background: none; border: 0; padding: 9px 2px; color: #c9d4e0;
+  font: 500 13px/1 "Inter", system-ui, sans-serif; letter-spacing: 0;
+}
+body.landing .threat-panel .sl-explore:hover { color: #fff; background: none; }
+.sl-stat { margin-top: auto; padding-top: 28px; color: #fff; }
+.sl-stat:empty { display: none; }
+.sl-num { font: 300 clamp(72px, 8.4vw, 112px)/0.86 "Inter Tight", "Inter", system-ui, sans-serif; letter-spacing: -0.04em; }
+.sl-cap { margin-top: 10px; font: 600 17px/1.3 "Inter", system-ui, sans-serif; }
+.sl-cap span { color: #8592a3; font-weight: 400; }
+.sl-stat ul { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 7px; font: 13px/1.2 "JetBrains Mono", monospace; color: #a9b4c2; }
+.sl-stat b { color: #fff; font-weight: 600; margin-right: 6px; }
+.sl-stat i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 10px; }
+.sl-stat i.high { background: #ff3b30; } .sl-stat i.medium { background: #ff8a00; } .sl-stat i.low { background: #ffd23f; }
+.sl-tag {
+  position: fixed; right: 32px; bottom: 36px; z-index: 61; display: grid; gap: 5px; text-align: right;
+  font: 12px/1.2 "JetBrains Mono", monospace; color: #8592a3; pointer-events: none;
+}
+.sl-tag b { color: #fff; font-size: 13px; letter-spacing: 0.14em; }
+.sl-tag-k { color: var(--t-accent); letter-spacing: 0.2em; font-size: 10.5px; text-transform: uppercase; }
+body:not(.landing) .sl-tag { display: none; }
+@media (max-width: 600px) {
+  body.threat-mode.landing .threat-panel {
+    bottom: auto; right: 0; width: 100vw; max-height: 100vh; padding: 28px 20px 56px;
+    background: linear-gradient(180deg, rgba(4, 5, 8, 0.96) 0%, rgba(4, 5, 8, 0.88) 72%, rgba(4, 5, 8, 0) 100%);
+  }
+  body.landing .threat-body { min-height: 0; gap: 14px; }
+  .sl-h1 { font-size: 42px; }
+  .sl-lede { font-size: 14.5px; }
+  .sl-stat { padding-top: 6px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+  .sl-num { font-size: 48px; }
+  .sl-cap { margin-top: 0; font-size: 14px; }
+  .sl-stat ul { width: 100%; margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11.5px; }
+  .sl-tag { right: 16px; bottom: 24px; }
+  body.threat-mode.landing .threat-panel.has-result .threat-alt { display: flex; }
+}
+
+/* ── View from here ─────────────────────────────────────────────── */
+.threat-pov {
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 62;
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  background: rgba(12, 16, 22, 0.88); backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px;
+  color: #e9edf2; font: 13px/1.3 Inter, system-ui, sans-serif;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); max-width: calc(100vw - 24px);
+}
+.threat-pov[hidden] { display: none; }
+.threat-pov button {
+  height: 36px; min-width: 36px; padding: 0 12px; border: 0; border-radius: 9px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.08); color: #fff; font: 600 14px Inter, system-ui, sans-serif;
+}
+.threat-pov button:hover { background: rgba(255, 255, 255, 0.16); }
+.threat-pov .threat-pov-back { background: #ff6b4a; color: #120a06; }
+.threat-pov .threat-pov-back:hover { background: #ff825f; }
+.threat-pov-text { display: grid; gap: 1px; min-width: 0; }
+.threat-pov-kicker { font: 600 10px "JetBrains Mono", monospace; letter-spacing: 0.12em; color: #ff8a6b; }
+.threat-pov-where { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.threat-pov-meta { color: #9aa6b4; font-size: 12px; white-space: nowrap; }
+.threat-pov-step, .threat-pov-zoom { display: flex; gap: 4px; }
+.threat-pov-step[hidden] { display: none; }
+.threat-pov-zoom button, .threat-pov-step button { padding: 0; font-size: 18px; }
+/* In POV the map tools step aside; the panel stays but the cam bar hides. */
+body.sl-pov .threat-cam, body.sl-pov .threat-hint-chip { display: none; }
+body.sl-pov .threat-panel { display: none; }
+@media (max-width: 600px) {
+  .threat-pov { bottom: 58px; gap: 8px; padding: 8px; flex-wrap: wrap; justify-content: space-between; width: calc(100vw - 24px); }
+  .threat-pov-text { order: -1; flex: 1 1 100%; }
+}
+.threat-cam .threat-cam-real { font-size: 11px; font-weight: 700; }
+.threat-cam .threat-cam-real.on { background: #ff6b4a; color: #120a06; }
+
+/* Headline + map key (2026-11-11, "easier to see and understand") */
+.threat-summary .threat-headline { font-family: inherit; font-size: 15px; }
+.threat-summary-sub { display: block; margin-top: 3px; color: var(--t-dim); font-size: 12px; }
+.threat-key {
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 61;
+  display: flex; align-items: center; gap: 12px; padding: 8px 12px;
+  background: rgba(12, 16, 22, 0.85); backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 10px;
+  color: #e8ebf0; font: 500 12px "IBM Plex Sans", system-ui, sans-serif; white-space: nowrap;
+  pointer-events: none;
+}
+.threat-key[hidden], body.sl-pov .threat-key, body.landing .threat-key { display: none; }
+.threat-key-title { font: 700 10.5px "IBM Plex Mono", monospace; letter-spacing: 0.08em; text-transform: uppercase; color: #9aa3b2; }
+.threat-key-item { display: inline-flex; align-items: center; gap: 6px; }
+.threat-key i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.threat-key i.high { background: #ff3b30; }
+.threat-key i.medium { background: #ff8a00; }
+.threat-key i.low { background: #ffd23f; }
+.threat-key i.blind { background: rgba(200, 205, 215, 0.35); border: 1px solid rgba(255, 255, 255, 0.35); }
+@media (max-width: 600px) {
+  .threat-key { bottom: 10px; left: 12px; transform: none; gap: 8px; padding: 6px 9px; font-size: 11px; flex-wrap: wrap; justify-content: flex-start; max-width: calc(100vw - 84px); white-space: normal; }
+  .threat-key-title { flex: 1 1 100%; text-align: center; }
+}
+/* View from here: a soft window frame round the view */
+body.sl-pov::after {
+  content: ""; position: fixed; inset: 0; z-index: 60; pointer-events: none;
+  box-shadow: inset 0 0 0 14px rgba(20, 22, 26, 0.9), inset 0 0 70px 24px rgba(0, 0, 0, 0.45);
+}
+@media (min-width: 601px) { .threat-key { left: 340px; top: 16px; bottom: auto; transform: none; } }
+/* Phones turn with a two-finger twist; the extra buttons would run under the panel. */
+@media (max-width: 600px) { .threat-cam-turn { display: none; } }
+
+/* ── Landing page: sections that scroll up over the live example ─────── */
+.sl-page {
+  position: fixed; inset: 0; z-index: 60; overflow-y: auto; overflow-x: hidden;
+  scroll-behavior: smooth; color: #e6ebf1; -webkit-overflow-scrolling: touch;
+  --slp-bg: #07090d; --slp-line: rgba(255, 255, 255, 0.09); --slp-dim: #8592a3; --slp-acc: #ff6b4a;
+}
+.sl-page .slp-hero { position: relative; height: 100vh; height: 100svh; }
+body.threat-mode.landing .sl-page .threat-panel { position: absolute; z-index: 1; }
+.slp-nav {
+  position: absolute; top: 28px; right: 32px; z-index: 2; display: flex; align-items: center; gap: 26px;
+  font: 500 13px/1 "Inter", system-ui, sans-serif;
+}
+.slp-nav a { color: #c9d4e0; text-decoration: none; }
+.slp-nav a:hover { color: #fff; }
+.sl-page button { cursor: pointer; font: 600 14px/1 "Inter", system-ui, sans-serif; border-radius: 10px; padding: 12px 18px; }
+.slp-nav .slp-open { padding: 10px 14px; font-size: 13px; background: rgba(255, 255, 255, 0.08); color: #fff; border: 1px solid rgba(255, 255, 255, 0.18); }
+.slp-nav .slp-open:hover { background: rgba(255, 255, 255, 0.16); }
+.slp-cue {
+  position: absolute; left: 50%; bottom: 30px; transform: translateX(-50%); z-index: 2;
+  font: 500 12px/1 "JetBrains Mono", monospace; letter-spacing: 0.16em; text-transform: uppercase;
+  color: #c9d4e0; text-decoration: none; transition: opacity 0.3s;
+}
+.slp-cue span { display: inline-block; margin-left: 6px; animation: slp-bob 1.8s ease-in-out infinite; }
+@keyframes slp-bob { 50% { transform: translateY(4px); } }
+.sl-page.scrolled .slp-cue { opacity: 0; }
+.slp-sec {
+  position: relative; background: var(--slp-bg); border-top: 1px solid var(--slp-line);
+  padding: 112px max(56px, calc((100vw - 1120px) / 2)); box-sizing: border-box;
+}
+.slp-sec#slp-how { box-shadow: 0 -80px 120px 40px var(--slp-bg); }
+.slp-k { margin: 0 0 18px; font: 600 12px/1 "JetBrains Mono", monospace; letter-spacing: 0.24em; text-transform: uppercase; color: var(--slp-acc); }
+.slp-sec h2 {
+  margin: 0 0 56px; max-width: 760px; color: #fff;
+  font: 800 clamp(32px, 4vw, 52px)/1.02 "Inter Tight", "Inter", system-ui, sans-serif; letter-spacing: -0.03em;
+}
+.slp-sec h3 { margin: 0 0 10px; color: #fff; font: 600 18px/1.25 "Inter", system-ui, sans-serif; }
+.slp-sec p, .slp-sec dd, .slp-sec li { color: #a9b4c2; font: 400 15.5px/1.55 "Inter", system-ui, sans-serif; }
+.slp-sec p { margin: 0; }
+.slp-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border-top: 1px solid var(--slp-line); }
+.slp-steps > li { padding: 28px 28px 0 0; }
+.slp-steps > li + li { padding-left: 28px; border-left: 1px solid var(--slp-line); }
+.slp-steps b { display: block; margin-bottom: 26px; font: 300 44px/1 "Inter Tight", "Inter", sans-serif; color: var(--slp-dim); letter-spacing: -0.03em; }
+.slp-bands { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 6px; }
+.slp-bands li { font: 12.5px/1.2 "JetBrains Mono", monospace; color: #c9d4e0; }
+.slp-bands i, .slp-limits i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 10px; }
+.slp-bands i.high { background: #ff3b30; } .slp-bands i.medium { background: #ff8a00; } .slp-bands i.low { background: #ffd23f; }
+.slp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--slp-line); border: 1px solid var(--slp-line); border-radius: 14px; overflow: hidden; }
+.slp-grid > div { background: var(--slp-bg); padding: 32px 32px 36px; }
+.slp-data { display: grid; grid-template-columns: 1.4fr 1fr; gap: 56px; align-items: start; }
+.slp-data dl { margin: 0; display: grid; grid-template-columns: 170px 1fr; border-top: 1px solid var(--slp-line); }
+.slp-data dt, .slp-data dd { margin: 0; padding: 18px 0; border-bottom: 1px solid var(--slp-line); }
+.slp-data dt { font: 500 12px/1.6 "JetBrains Mono", monospace; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; }
+.slp-data em { font-style: normal; color: #fff; }
+.slp-limits { padding: 28px 30px; border: 1px solid var(--slp-line); border-radius: 14px; background: rgba(255, 255, 255, 0.025); }
+.slp-limits ul { margin: 0 0 18px; padding: 0 0 0 18px; }
+.slp-limits li { margin: 4px 0; }
+.slp-end { text-align: center; }
+.slp-end h2 { margin: 0 auto 18px; }
+.slp-lead { max-width: 520px; margin: 0 auto 36px !important; font-size: 17px !important; }
+.slp-ctas { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.slp-search { background: var(--slp-acc); border: 1px solid var(--slp-acc); color: #0b0e13; }
+.slp-search:hover { filter: brightness(1.08); }
+.slp-ghost { background: none; border: 1px solid rgba(255, 255, 255, 0.22); color: #fff; }
+.slp-ghost:hover { background: rgba(255, 255, 255, 0.08); }
+.slp-foot {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 24px; background: var(--slp-bg);
+  border-top: 1px solid var(--slp-line); padding: 28px max(56px, calc((100vw - 1120px) / 2)) 64px;
+  font: 11.5px/1.4 "JetBrains Mono", monospace; color: var(--slp-dim);
+}
+.slp-foot span:first-child { color: #fff; letter-spacing: 0.24em; }
+@media (max-width: 900px) {
+  .slp-steps { grid-template-columns: repeat(2, 1fr); }
+  .slp-steps > li:nth-child(3) { border-left: 0; padding-left: 0; }
+  .slp-steps > li:nth-child(n + 3) { border-top: 1px solid var(--slp-line); margin-top: 28px; }
+  .slp-data { grid-template-columns: 1fr; gap: 32px; }
+}
+@media (max-width: 600px) {
+  .slp-nav { display: none; }
+  .slp-cue { bottom: 22px; }
+  .slp-sec { padding: 72px 20px; }
+  .slp-sec h2 { margin-bottom: 36px; font-size: 32px; }
+  .slp-steps, .slp-grid { grid-template-columns: 1fr; }
+  .slp-steps > li, .slp-steps > li + li { padding: 22px 0 0; border-left: 0; margin-top: 0; }
+  .slp-steps > li + li { border-top: 1px solid var(--slp-line); margin-top: 22px; }
+  .slp-steps b { margin-bottom: 14px; font-size: 32px; }
+  .slp-grid > div { padding: 24px 22px 26px; }
+  .slp-data dl { grid-template-columns: 1fr; }
+  .slp-data dt { padding-bottom: 4px; border-bottom: 0; }
+  .slp-data dd { padding-top: 0; }
+  .slp-foot { padding: 24px 20px 60px; flex-direction: column; }
+}
+.sl-tag { transition: opacity 0.3s; }
+body:has(.sl-page.scrolled) .sl-tag { opacity: 0; }
+/* The map is covered once you scroll into the sections, so its credit can go too. */
+.cesium-widget-credits { transition: opacity 0.3s; }
+body:has(.sl-page.scrolled) .cesium-widget-credits { opacity: 0; pointer-events: none; }
+@media (max-width: 600px) { .slp-cue { display: none; } }
+
+/* ── Live hero (landing): overlay + pin chip ── */
+.lh-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 1; }
+body:not(.landing) .lh-canvas { display: none; }
+body:has(.sl-page.scrolled) .lh-canvas { opacity: 0.25; transition: opacity 0.3s; }
+.sl-page .slp-hero { cursor: crosshair; }
+.sl-page .slp-hero .threat-panel { cursor: auto; }
+.lh-chip {
+  position: absolute; left: 0; top: 0; z-index: 2; white-space: nowrap;
+  font: 600 12px/1 "JetBrains Mono", monospace; letter-spacing: 0.04em;
+  color: #0b0e13; background: #ff6b4a; border: 0; border-radius: 3px; padding: 9px 12px; cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+}
+.lh-chip:hover { background: #ff8466; }
+.sl-live-hint { margin: 12px 0 0; font: 11px/1.2 "JetBrains Mono", monospace; letter-spacing: 0.12em; text-transform: uppercase; color: #6f7b8b; }
+@media (max-width: 600px) { .sl-live-hint { width: 100%; margin-top: 4px; } }

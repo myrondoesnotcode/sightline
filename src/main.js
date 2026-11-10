@@ -30,10 +30,16 @@ import {
   holdContinuousRender,
   releaseContinuousRender,
 } from './renderGovernor.js';
-import { installScopeMask } from './scopeMask.js';
+import { installScopeMask, setScopeMaskEnabled } from './scopeMask.js';
 import { initFirstRunExperience } from './firstRunExperience.js';
+import { initThreatTool } from './threat/threatTool.js';
 
 initLogoGaze();
+
+// Sightline: the public site is the threat map only. `?full` brings back the
+// whole God's Eye View console (flights, satellites, cockpit, voice).
+const THREAT_MODE = !new URLSearchParams(window.location.search).has('full');
+if (THREAT_MODE) document.body.classList.add('threat-mode');
 
 /**
  * Extract a human-readable error message from any thrown value.
@@ -199,7 +205,13 @@ async function init() {
     const cockpitCloudEffects = initCockpitCloudEffects(viewer);
 
     // If no share link state, do default fly-to Austin
-    if (!styleManager.hasShareState) {
+    if (!styleManager.hasShareState && THREAT_MODE) {
+      loaderStatus.textContent = 'Loading Tel Aviv...';
+      viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(34.7740, 32.0650, 1500),
+        orientation: { heading: Cesium.Math.toRadians(15), pitch: Cesium.Math.toRadians(-40), roll: 0 },
+      });
+    } else if (!styleManager.hasShareState) {
       loaderStatus.textContent = 'Flying to Austin, TX...';
       flyToAustin(viewer);
     } else {
@@ -250,8 +262,13 @@ async function init() {
 
     // Keep startup chrome truthful: a share is not restored until camera,
     // visual/map/panel lanes, and every requested layer have terminated.
+    // Sightline mode doesn't use the godseye data layers, so don't hold the
+    // cover for their restore: show the map after at most 2.5 s.
+    const restoreGate = THREAT_MODE
+      ? Promise.race([styleManager.initialRestorePromise, new Promise((resolve) => setTimeout(resolve, 2500))])
+      : styleManager.initialRestorePromise;
     void Promise.all([
-      styleManager.initialRestorePromise,
+      restoreGate,
       new Promise((resolve) => setTimeout(resolve, 1000)),
     ]).finally(() => {
       loadingScreen.classList.add('hidden');
@@ -264,7 +281,7 @@ async function init() {
         // dataManager is passed explicitly: the globe missions enable bundled
         // keyless layers through it, and reaching for styleManager._dataManager
         // would make a private field part of this feature's contract.
-        initFirstRunExperience({ styleManager, dataManager });
+        if (!THREAT_MODE) initFirstRunExperience({ styleManager, dataManager });
       };
       loadingScreen.addEventListener('transitionend', revealFirstRun, { once: true });
       setTimeout(revealFirstRun, 900);
@@ -280,6 +297,7 @@ async function init() {
     // see src/scopeMask.js. Installed before the UI so the DISPLAY-rail
     // toggle finds it live.
     installScopeMask(viewer);
+    if (THREAT_MODE) setScopeMaskEnabled(false);
 
     // The follow camera recomputes the tracked target's dead-reckon position
     // every frame — tracking anything is a per-frame animation. (perf wave 2)
@@ -325,6 +343,7 @@ async function init() {
       requestRender: governorRequestRender,
     };
     window.__godsEyeView.voiceCommands = initGevVoiceCommands({ viewer, styleManager, dataManager, sceneDirector, annotations });
+    window.__godsEyeView.threat = initThreatTool({ viewer, tileset, mapStackController });
 
   } catch (error) {
     console.error("God's Eye View initialization failed:", error);
