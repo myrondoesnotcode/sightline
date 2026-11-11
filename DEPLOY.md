@@ -29,8 +29,9 @@ API restrictions: keep "Map Tiles API" only. Save.
 **B. Cap daily use**
 Google Maps Platform → Quotas → Map Tiles API. Tick each quota, click Edit, enter
 a lower number, and submit:
-- Photorealistic 3D Tiles root requests per day: e.g. 300
-- 2D tiles per day: e.g. 20,000
+- 3D Tiles root requests per day: 32 (31 days × 32 = 992, under the 1,000 free)
+- 2D Tiles requests per day: 3,225 (31 × 3,225 = 99,975, under the 100,000 free)
+- Street View Tiles requests per day: 0 (Sightline doesn't use them)
 
 Google resets these at midnight Pacific time. Past the cap, Sightline still
 works on its own dark map and buildings; only the Google satellite and 3D
