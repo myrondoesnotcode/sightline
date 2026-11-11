@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spot Timeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* Layout: full-bleed imagery; a search card top-left and a "film strip" time panel docked at the bottom. Single dark look on purpose, so the imagery reads. */
+:root {
+  --bg: #0d0f10;
+  --panel: rgba(18, 20, 21, 0.92);
+  --line: #2a2e30;
+  --fg: #ece9e2;
+  --muted: #9a9b95;
+  --accent: #ff5a18;
+  --accent-ink: #160a04;
+  --ok: #7fd18b;
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.4 var(--font-ui); overflow: hidden; }
+#map { position: absolute; inset: 0; background: var(--bg); }
+.leaflet-container { background: var(--bg); font-family: var(--font-ui); }
+.leaflet-control-attribution { background: rgba(13,15,16,0.7) !important; color: var(--muted) !important; font-size: 10px; }
+.leaflet-control-attribution a { color: var(--muted) !important; }
+.leaflet-bar a { background: var(--panel); color: var(--fg); border-color: var(--line); }
+.leaflet-bar a:hover { background: #1f2224; color: var(--fg); }
+
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+
+/* Search card */
+#top { position: absolute; z-index: 1000; top: calc(12px + env(safe-area-inset-top, 0px)); left: calc(12px + env(safe-area-inset-left, 0px)); width: min(380px, calc(100% - 24px - 50px)); padding: 12px; display: grid; gap: 8px; }
+.brand { display: flex; align-items: baseline; gap: 8px; }
+.brand b { font: 600 13px var(--font-data); letter-spacing: 0.12em; text-transform: uppercase; }
+.brand span { color: var(--muted); font-size: 12px; }
+#backLink { margin-left: auto; font: 500 12px var(--font-data); color: var(--accent); text-decoration: none; white-space: nowrap; }
+#backLink:hover { text-decoration: underline; }
+#searchForm { display: flex; gap: 6px; }
+#q { flex: 1; min-width: 0; background: #0a0b0c; border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; }
+#q::placeholder { color: #6d6e69; }
+.btn { background: #1b1e1f; border: 1px solid var(--line); border-radius: 7px; padding: 7px 11px; white-space: nowrap; }
+.btn:hover { border-color: #43484b; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+#place { font-size: 12px; color: var(--muted); min-height: 1.2em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#place .coord { font-family: var(--font-data); }
+
+/* Time panel */
+#panel { position: absolute; z-index: 1000; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); width: min(900px, calc(100% - 24px)); padding: 12px 14px 10px; display: grid; gap: 10px; box-sizing: border-box; }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { background: transparent; border: 0; padding: 6px 12px; color: var(--muted); }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); font-weight: 600; }
+.filter { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.filter select { background: #0a0b0c; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+.spacer { flex: 1; }
+
+.readout { display: flex; align-items: center; gap: 12px; }
+#date { font: 600 26px/1 var(--font-data); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; min-width: 9.6ch; }
+#meta { color: var(--muted); font-size: 12.5px; min-width: 0; flex: 1; }
+#meta b { color: var(--fg); font-weight: 500; }
+.step { display: flex; gap: 6px; }
+.step .btn { font-family: var(--font-data); padding: 6px 12px; }
+
+#ticks { display: flex; align-items: flex-end; gap: 1px; height: 26px; cursor: pointer; }
+#ticks i { flex: 1; min-width: 1px; background: #4a4f52; border-radius: 1px; }
+#ticks i.before { background: #8ab4ff; }
+#ticks i.on { background: var(--accent); }
+#slider { width: 100%; margin: 0; accent-color: var(--accent); }
+.ends { display: flex; justify-content: space-between; font: 11px var(--font-data); color: var(--muted); font-variant-numeric: tabular-nums; }
+#hint { font-size: 12px; color: var(--muted); }
+#hint kbd { font: 11px var(--font-data); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+
+#compareRow { display: none; }
+#compareRow.on { display: flex; }
+#beforeSel { background: #0a0b0c; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font-family: var(--font-data); }
+.swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; background: #8ab4ff; }
+.swatch.after { background: var(--accent); }
+.swatch.change { background: #ff2bd6; }
+.hl { color: var(--fg); }
+
+/* Split divider */
+#divider { position: absolute; z-index: 900; top: 0; bottom: 0; width: 0; display: none; }
+#divider.on { display: block; }
+#divider .bar { position: absolute; top: 0; bottom: 0; left: -1px; width: 2px; background: var(--fg); box-shadow: 0 0 0 1px rgba(0,0,0,0.4); }
+#divider .handle { position: absolute; top: 50%; left: -18px; width: 36px; height: 36px; margin-top: -18px; border-radius: 50%; background: var(--fg); color: var(--bg); display: grid; place-items: center; font: 600 13px var(--font-data); cursor: ew-resize; touch-action: none; }
+.tag { position: absolute; top: calc(50% + 28px); font: 600 12px var(--font-data); padding: 4px 8px; border-radius: 5px; white-space: nowrap; }
+#tagBefore { right: 10px; background: #8ab4ff; color: #0a1220; }
+#tagAfter { left: 10px; background: var(--accent); color: var(--accent-ink); }
+
+.spot-pin { width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; border: 2px solid var(--accent); box-shadow: 0 0 0 2px rgba(0,0,0,0.5), inset 0 0 0 2px rgba(0,0,0,0.35); }
+.spot-pin::after { content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: var(--accent); }
+
+/* Pro: watched spots + evidence report */
+.pro { font: 600 9.5px var(--font-data); letter-spacing: 0.08em; background: var(--accent); color: var(--accent-ink); border-radius: 3px; padding: 1px 4px; vertical-align: 1px; }
+#top { grid-template-columns: minmax(0, 1fr); box-sizing: border-box; }
+#proRow { display: flex; gap: 6px; flex-wrap: wrap; }
+#proRow .btn { padding: 5px 9px; font-size: 13px; }
+#watchBtn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+#watchList { display: grid; gap: 4px; max-height: 40vh; overflow: auto; }
+#watchList .item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; background: #0a0b0c; cursor: pointer; }
+#watchList .item:hover { border-color: #43484b; }
+#watchList .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#watchList .nm small { display: block; color: var(--muted); font: 11px var(--font-data); }
+#watchList .new { font: 600 11px var(--font-data); color: var(--accent); white-space: nowrap; }
+#watchList .new.none { color: var(--muted); font-weight: 400; }
+#watchList .x { background: none; border: 0; color: var(--muted); padding: 2px 4px; }
+.note { font-size: 11.5px; color: var(--muted); }
+
+#report { position: fixed; inset: 0; z-index: 3000; background: rgba(5,6,7,0.8); overflow: auto; padding: 24px 12px; }
+#report .sheet { max-width: 860px; margin: 0 auto; background: #f6f4ef; color: #15140f; border-radius: 10px; padding: 28px 30px; font: 13.5px/1.5 var(--font-ui); }
+#report h1 { font: 600 20px var(--font-data); margin: 0 0 2px; letter-spacing: -0.01em; }
+#report h2 { font: 600 12px var(--font-data); text-transform: uppercase; letter-spacing: 0.1em; color: #6b6960; margin: 22px 0 8px; }
+#report .sub { color: #6b6960; font: 12px var(--font-data); }
+#report table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+#report th, #report td { text-align: left; padding: 5px 8px 5px 0; border-bottom: 1px solid #dedad0; vertical-align: top; }
+#report th { color: #6b6960; font-weight: 500; width: 22%; }
+#report td code, #report .hash { font: 11px var(--font-data); word-break: break-all; }
+#report .imgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+#report figure { margin: 0; }
+#report figure .frame { position: relative; }
+#report figure img { width: 100%; display: block; border-radius: 4px; background: #ccc; }
+#report figure .frame::after { content: ""; position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -9px; border: 2px solid #ff5a18; border-radius: 50%; }
+#report figcaption { font: 11px var(--font-data); color: #6b6960; margin-top: 4px; }
+#report .big { font: 600 22px var(--font-data); }
+#report .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 22px; }
+#report .actions .btn { background: #15140f; color: #f6f4ef; border-color: #15140f; }
+#report .actions .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+#report .warn { background: #ece7da; border-radius: 6px; padding: 10px 12px; font-size: 12.5px; }
+@media print {
+  body { overflow: visible; background: #fff; }
+  body > *:not(#report) { display: none !important; }
+  #report { position: static; background: none; padding: 0; overflow: visible; }
+  #report .sheet { border-radius: 0; padding: 0; }
+  #report .actions { display: none; }
+}
+
+@media (max-width: 640px) {
+  #report .imgs { grid-template-columns: 1fr; }
+  #report .sheet { padding: 20px 16px; }
+  #top { width: calc(100% - 24px - 50px); }
+  #date { font-size: 21px; }
+  #hint { display: none; }
+  .readout { flex-wrap: wrap; }
+  #meta { flex-basis: 100%; order: 3; }
+}
+@media (prefers-reduced-motion: reduce) { .leaflet-fade-anim .leaflet-tile { transition: none !important; } }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div id="divider" aria-hidden="true">
+  <div class="bar"></div>
+  <span class="tag" id="tagBefore">BEFORE</span>
+  <span class="tag" id="tagAfter">AFTER</span>
+  <div class="handle" id="handle">⇔</div>
+</div>
+
+<div id="top" class="card">
+  <div class="brand"><b>Spot Timeline</b><span>one place, every satellite date</span><a id="backLink" hidden>‹ Sightline</a></div>
+  <form id="searchForm" autocomplete="off">
+    <input id="q" type="search" placeholder="Address, place, or 32.08, 34.78" aria-label="Search for a place">
+    <button class="btn primary" type="submit">Go</button>
+  </form>
+  <div id="place">Loading…</div>
+  <div id="proRow">
+    <button id="watchBtn" class="btn" type="button" aria-pressed="false">☆ Watch this spot</button>
+    <button id="listBtn" class="btn" type="button" aria-expanded="false">Watched <span id="watchCount">0</span></button>
+    <button id="reportBtn" class="btn" type="button">Evidence report <span class="pro">PRO</span></button>
+  </div>
+  <div id="watchBox" hidden>
+    <div id="watchList"></div>
+    <div class="note">New imagery since you last opened each spot. Email and phone alerts come with the Pro server.</div>
+  </div>
+</div>
+
+<div id="report" hidden role="dialog" aria-modal="true" aria-labelledby="repTitle"><div class="sheet" id="sheet"></div></div>
+
+<div id="panel" class="card">
+  <div class="row">
+    <div class="seg" role="group" aria-label="Imagery">
+      <button id="modeSharp" type="button" aria-pressed="true">Sharp archive</button>
+      <button id="modeS2" type="button" aria-pressed="false">Sentinel-2 10 m</button>
+      <button id="modeRadar" type="button" aria-pressed="false">Radar</button>
+    </div>
+    <label class="filter" id="filterSharp"><input id="onlyNew" type="checkbox" checked> Only dates with new imagery here</label>
+    <label class="filter" id="filterFresh" hidden>Clouds
+      <select id="cloud"><option value="20">under 20%</option><option value="50" selected>under 50%</option><option value="101">any</option></select>
+    </label>
+    <span class="spacer"></span>
+    <button id="compareBtn" class="btn" type="button" aria-pressed="false">Compare</button>
+  </div>
+
+  <div class="row" id="compareRow">
+    <span class="swatch"></span><span class="filter">Before</span>
+    <select id="beforeSel" aria-label="Before date"></select>
+    <span class="swatch after"></span><span class="filter">After = slider date. Drag the ⇔ line.</span>
+    <span class="spacer"></span>
+    <label class="filter hl"><input id="hl" type="checkbox"> <span class="swatch change"></span> Highlight what changed</label>
+  </div>
+
+  <div class="readout">
+    <div id="date">—</div>
+    <div id="meta">Finding dates…</div>
+    <div class="step">
+      <button class="btn" id="prev" type="button" aria-label="Older date">‹</button>
+      <button class="btn" id="next" type="button" aria-label="Newer date">›</button>
+    </div>
+  </div>
+
+  <div>
+    <div id="ticks" aria-hidden="true"></div>
+    <input id="slider" type="range" min="0" max="0" value="0" step="1" aria-label="Date">
+    <div class="ends"><span id="first">—</span><span id="count"></span><span id="last">—</span></div>
+  </div>
+  <div id="hint">Click the map to pick a spot. Drag the slider or press <kbd>←</kbd> <kbd>→</kbd> to move through time.</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(() => {
+  const WAYBACK_CONFIG = 'https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json';
+  const WAYBACK_TILEMAP = 'https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tilemap';
+  const PC_STAC = 'https://planetarycomputer.microsoft.com/api/stac/v1/search';
+  const PC_TILES = 'https://planetarycomputer.microsoft.com/api/data/v1/item/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png';
+  const NATIVE = { wayback: 18, s2: 16, radar: 15 };
+  const LABELS = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
+
+  const $ = id => document.getElementById(id);
+  const state = {
+    mode: 'sharp',
+    spot: null, name: '',
+    releases: [],        // all Wayback releases, oldest first
+    changes: null,       // Wayback releases where this spot's imagery changed
+    s2: null,            // Sentinel-2 scenes over this spot
+    radar: null,         // Sentinel-1 radar scenes over this spot
+    highlight: false,
+    list: [], idx: 0,
+    compare: false, beforeIdx: 0, split: 0.5,
+    token: 0,
+  };
+
+  // ---------- map ----------
+  const params = new URLSearchParams(location.search);
+  const at = (params.get('at') || '').split(',').map(Number);
+  const start = at.length === 2 && at.every(Number.isFinite) ? at : [32.0809, 34.7806]; // Rabin Square, Tel Aviv
+  const startZoom = Number(params.get('z')) || 17;
+
+  const map = L.map('map', { zoomControl: false, maxZoom: 19, minZoom: 3 }).setView(start, startZoom);
+  L.control.zoom({ position: 'topright' }).addTo(map);
+  map.createPane('before').style.zIndex = 250;
+  const labelsPane = map.createPane('labels'); labelsPane.style.zIndex = 450; labelsPane.style.pointerEvents = 'none';
+  L.tileLayer(LABELS, { pane: 'labels', maxZoom: 19, attribution: 'Labels © Esri' }).addTo(map);
+
+  const pin = L.marker(start, { icon: L.divIcon({ className: '', html: '<div class="spot-pin"></div>', iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(map);
+
+  const layers = { after: null, before: null };
+
+  function tileXY(lat, lon, z) {
+    const n = 2 ** z, r = lat * Math.PI / 180;
+    return { x: Math.floor((lon + 180) / 360 * n), y: Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n) };
+  }
+
+  function entryUrl(e) {
+    if (e.kind === 'wayback') return e.url;
+    if (e.kind === 's2') return `${PC_TILES}?collection=sentinel-2-l2a&item=${e.id}&assets=visual`;
+    return `${PC_TILES}?collection=sentinel-1-grd&item=${e.id}&assets=vv&rescale=0,550`;
+  }
+  function entryAttribution(e) {
+    if (e.kind === 'wayback') return 'Imagery © Esri World Imagery Wayback, Maxar, Earthstar Geographics';
+    if (e.kind === 's2') return 'Copernicus Sentinel-2 (ESA) via Microsoft Planetary Computer';
+    return 'Copernicus Sentinel-1 (ESA) via Microsoft Planetary Computer';
+  }
+
+  function show(slot, e) {
+    if (!e) { if (layers[slot]) { map.removeLayer(layers[slot]); layers[slot] = null; } return; }
+    const opts = { maxZoom: 19, maxNativeZoom: NATIVE[e.kind], keepBuffer: 3, attribution: entryAttribution(e) };
+    if (slot === 'before') opts.pane = 'before';
+    const layer = L.tileLayer(entryUrl(e), opts).addTo(map);
+    const old = layers[slot];
+    layers[slot] = layer;
+    if (old) {
+      const drop = () => { if (map.hasLayer(old)) map.removeLayer(old); };
+      layer.once('load', drop);
+      setTimeout(drop, 3000);
+    }
+  }
+
+  // ---------- change highlight ----------
+  // Brightness per pixel, z-normalised so a sunnier or hazier day doesn't count as change.
+  function lumOf(d, count) {
+    const L2 = new Float32Array(count), ok = new Uint8Array(count);
+    let s = 0, s2 = 0, n = 0;
+    for (let i = 0; i < count; i++) {
+      const r = d[i * 4], gg = d[i * 4 + 1], b = d[i * 4 + 2], a = d[i * 4 + 3];
+      if (a < 200 || r + gg + b < 6) continue;
+      const v = 0.3 * r + 0.59 * gg + 0.11 * b; L2[i] = v; ok[i] = 1; s += v; s2 += v * v; n++;
+    }
+    const m = s / Math.max(1, n), sd = Math.sqrt(Math.max(1, s2 / Math.max(1, n) - m * m));
+    for (let i = 0; i < count; i++) if (ok[i]) L2[i] = (L2[i] - m) / sd;
+    return { L: L2, ok };
+  }
+  // Compares 4x4 blocks (so single noisy pixels don't light up) and paints magenta where they differ.
+  // Returns the share of compared blocks that changed.
+  function diffInto(A, B, size, th, o) {
+    const BS = 4;
+    let changed = 0, total = 0;
+    for (let by = 0; by < size; by += BS) for (let bx = 0; bx < size; bx += BS) {
+      let sum = 0, n = 0;
+      for (let y = by; y < by + BS; y++) for (let x = bx; x < bx + BS; x++) {
+        const i = y * size + x; if (!A.ok[i] || !B.ok[i]) continue;
+        sum += Math.abs(A.L[i] - B.L[i]); n++;
+      }
+      if (!n) continue;
+      total++;
+      const dv = sum / n;
+      if (dv < th) continue;
+      changed++;
+      const al = Math.min(1, (dv - th) / 0.8) * 200 + 40;
+      for (let y = by; y < by + BS; y++) for (let x = bx; x < bx + BS; x++) {
+        const p = (y * size + x) * 4; o[p] = 255; o[p + 1] = 43; o[p + 2] = 214; o[p + 3] = al;
+      }
+    }
+    return total ? changed / total : 0;
+  }
+  const TH = { wayback: 1.2, s2: 0.9, radar: 1.1 };
+  // Loads the before and after tile and paints what changed.
+  map.createPane('change').style.zIndex = 300;
+  map.getPane('change').style.pointerEvents = 'none';
+  const ChangeLayer = L.GridLayer.extend({
+    createTile(coords, done) {
+      const c = document.createElement('canvas'); c.width = c.height = 256;
+      const load = tpl => new Promise((res, rej) => {
+        const im = new Image(); im.crossOrigin = 'anonymous';
+        im.onload = () => res(im); im.onerror = rej;
+        im.src = L.Util.template(tpl, { x: coords.x, y: coords.y, z: coords.z });
+      });
+      Promise.all([load(this.options.a), load(this.options.b)]).then(([ia, ib]) => {
+        const w = document.createElement('canvas'); w.width = w.height = 256;
+        const g = w.getContext('2d', { willReadFrequently: true });
+        const lum = im => {
+          g.clearRect(0, 0, 256, 256); g.drawImage(im, 0, 0, 256, 256);
+          return lumOf(g.getImageData(0, 0, 256, 256).data, 65536);
+        };
+        const ctx = c.getContext('2d'), out = ctx.createImageData(256, 256);
+        diffInto(lum(ia), lum(ib), 256, this.options.th, out.data);
+        ctx.putImageData(out, 0, 0);
+        done(null, c);
+      }).catch(() => done(null, c));
+      return c;
+    },
+  });
+  let changeLayer = null;
+  function showChange() {
+    if (changeLayer) { map.removeLayer(changeLayer); changeLayer = null; }
+    const a = state.list[state.beforeIdx], b = state.list[state.idx];
+    if (!state.compare || !state.highlight || !a || !b || a === b) return;
+    changeLayer = new ChangeLayer({
+      a: entryUrl(a), b: entryUrl(b), pane: 'change', maxZoom: 19,
+      maxNativeZoom: NATIVE[b.kind], th: TH[b.kind],
+    }).addTo(map);
+  }
+
+  // ---------- split compare ----------
+  const divider = $('divider');
+  function updateClip() {
+    const pane = map.getPane('before');
+    if (!state.compare) { pane.style.clip = ''; return; }
+    const size = map.getSize();
+    const x = Math.round(size.x * state.split);
+    const nw = map.containerPointToLayerPoint([0, 0]);
+    const se = map.containerPointToLayerPoint(size);
+    const cx = map.containerPointToLayerPoint([x, 0]).x;
+    pane.style.clip = `rect(${nw.y}px, ${cx}px, ${se.y}px, ${nw.x}px)`;
+    divider.style.left = x + 'px';
+  }
+  map.on('move zoom zoomend moveend resize', updateClip);
+
+  let dragging = false;
+  const handle = $('handle');
+  L.DomEvent.disableClickPropagation(divider);
+  handle.addEventListener('pointerdown', ev => { dragging = true; handle.setPointerCapture(ev.pointerId); ev.preventDefault(); ev.stopPropagation(); });
+  handle.addEventListener('pointermove', ev => {
+    if (!dragging) return;
+    const r = map.getContainer().getBoundingClientRect();
+    state.split = Math.min(0.97, Math.max(0.03, (ev.clientX - r.left) / r.width));
+    updateClip();
+  });
+  handle.addEventListener('pointerup', () => { dragging = false; });
+
+  // ---------- data ----------
+  async function loadReleases() {
+    const cfg = await fetch(WAYBACK_CONFIG).then(r => r.json());
+    state.releases = Object.entries(cfg).map(([key, v]) => {
+      const m = /(\d{4}-\d{2}-\d{2})/.exec(v.itemTitle || '');
+      return {
+        kind: 'wayback', key: String(key), date: m ? m[1] : '',
+        url: v.itemURL.replace('{level}', '{z}').replace('{row}', '{y}').replace('{col}', '{x}'),
+      };
+    }).filter(r => r.date).sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  // Ask Wayback which release each version of this spot's tile came from, walking back from newest.
+  async function loadChanges(lat, lon) {
+    const z = 16, { x, y } = tileXY(lat, lon, z);
+    const byKey = new Map(state.releases.map(r => [r.key, r]));
+    const desc = state.releases.slice().reverse();
+    const found = new Map();
+    let i = 0, guard = 0;
+    while (i < desc.length && guard++ < 80) {
+      const r = desc[i];
+      let j;
+      try { j = await fetch(`${WAYBACK_TILEMAP}/${r.key}/${z}/${y}/${x}`).then(res => res.json()); } catch { break; }
+      if (!j || !j.data || !j.data[0]) break;
+      const src = byKey.get(String(j.select && j.select[0] != null ? j.select[0] : r.key)) || r;
+      found.set(src.key, src);
+      const k = desc.findIndex(d => d.date < src.date);
+      if (k < 0) break;
+      i = k;
+    }
+    return [...found.values()].sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  // Every Sentinel-2 or Sentinel-1 scene over this spot in the last 2 years (Planetary Computer STAC, no key).
+  async function loadScenes(kind, lat, lon, since) {
+    const end = new Date();
+    let begin = new Date(end);
+    begin.setFullYear(end.getFullYear() - 2);
+    if (since) begin = new Date(since + 'T23:59:59Z');
+    if (begin >= end) return [];
+    let body = {
+      collections: [kind === 's2' ? 'sentinel-2-l2a' : 'sentinel-1-grd'],
+      intersects: { type: 'Point', coordinates: [lon, lat] },
+      datetime: `${begin.toISOString()}/${end.toISOString()}`,
+      limit: 1000,
+      fields: { include: ['id', 'properties.datetime', 'properties.eo:cloud_cover', 'properties.sat:orbit_state'], exclude: ['assets', 'links', 'geometry', 'bbox'] },
+    };
+    const feats = [];
+    let url = PC_STAC;
+    for (let page = 0; url && page < 6; page++) {
+      const j = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
+      feats.push(...(j.features || []));
+      const nx = (j.links || []).find(l => l.rel === 'next');
+      if (nx && nx.body) { url = nx.href; body = { ...body, ...nx.body }; } else url = null;
+    }
+    const byDate = new Map();
+    for (const f of feats) {
+      const p = f.properties || {};
+      const e = { kind, id: f.id, date: p.datetime.slice(0, 10), cloud: kind === 's2' ? Number(p['eo:cloud_cover'] ?? 100) : 0, orbit: p['sat:orbit_state'] || '' };
+      const cur = byDate.get(e.date);
+      if (!cur || e.cloud < cur.cloud) byDate.set(e.date, e);
+    }
+    return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  // ---------- list + UI ----------
+  function buildList() {
+    if (state.mode === 'sharp') {
+      state.list = $('onlyNew').checked && state.changes && state.changes.length ? state.changes : state.releases;
+    } else if (state.mode === 's2') {
+      const max = Number($('cloud').value);
+      state.list = (state.s2 || []).filter(p => p.cloud < max);
+    } else {
+      state.list = state.radar || [];
+    }
+  }
+
+  function fmtDate(d) {
+    const dt = new Date(d + 'T00:00:00Z');
+    return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  }
+  function ago(d) {
+    const days = Math.round((Date.now() - Date.parse(d + 'T00:00:00Z')) / 86400000);
+    if (days < 1) return 'today';
+    if (days < 60) return `${days} day${days === 1 ? '' : 's'} ago`;
+    if (days < 730) return `${Math.round(days / 30.4)} months ago`;
+    return `${(days / 365.25).toFixed(1)} years ago`;
+  }
+
+  function render(apply = true) {
+    const n = state.list.length;
+    const slider = $('slider');
+    slider.max = Math.max(0, n - 1);
+    slider.value = state.idx;
+    slider.disabled = n < 2;
+    $('prev').disabled = state.idx <= 0;
+    $('next').disabled = state.idx >= n - 1;
+
+    const e = state.list[state.idx];
+    if (!e) {
+      $('date').textContent = '—';
+      $('meta').textContent = state.mode === 's2' ? 'No passes match this cloud filter. Try "any".' : 'No imagery found here.';
+      $('first').textContent = $('last').textContent = '—'; $('count').textContent = '';
+      $('ticks').innerHTML = '';
+      return;
+    }
+    $('date').textContent = e.date;
+    const meta = $('meta');
+    meta.textContent = '';
+    const b = document.createElement('b');
+    if (e.kind === 'wayback') {
+      b.textContent = fmtDate(e.date) + ' · ' + ago(e.date);
+      meta.append(b, document.createElement('br'), 'Esri World Imagery release. Sub-meter, but the photo can be older than the release date.');
+    } else if (e.kind === 's2') {
+      b.textContent = fmtDate(e.date) + ' · ' + ago(e.date) + ' · ' + Math.round(e.cloud) + '% cloud';
+      meta.append(b, document.createElement('br'), 'Sentinel-2 pass, 10 m pixels: streets and buildings, not people or cars.');
+    } else {
+      b.textContent = fmtDate(e.date) + ' · ' + ago(e.date) + (e.orbit ? ' · ' + e.orbit + ' pass' : '');
+      meta.append(b, document.createElement('br'), 'Sentinel-1 radar, ~10 m. Sees through cloud and at night. Bright = hard surfaces, metal, rubble.');
+    }
+    $('first').textContent = state.list[0].date;
+    $('last').textContent = state.list[n - 1].date;
+    $('count').textContent = `${state.idx + 1} / ${n} dates`;
+
+    drawTicks();
+    if (apply) scheduleShow();
+  }
+
+  function drawTicks() {
+    const box = $('ticks');
+    const frag = document.createDocumentFragment();
+    state.list.forEach((e, i) => {
+      const t = document.createElement('i');
+      const h = e.kind === 's2' ? 30 + 70 * (1 - Math.min(100, e.cloud) / 100) : 100;
+      t.style.height = h + '%';
+      if (i === state.idx) t.className = 'on';
+      else if (state.compare && i === state.beforeIdx) t.className = 'before';
+      frag.append(t);
+    });
+    box.replaceChildren(frag);
+  }
+
+  let showTimer = 0;
+  function scheduleShow() {
+    clearTimeout(showTimer);
+    showTimer = setTimeout(() => {
+      show('after', state.list[state.idx]);
+      show('before', state.compare ? state.list[state.beforeIdx] : null);
+      showChange();
+      $('tagAfter').textContent = 'AFTER ' + (state.list[state.idx] ? state.list[state.idx].date : '');
+      $('tagBefore').textContent = 'BEFORE ' + (state.list[state.beforeIdx] ? state.list[state.beforeIdx].date : '');
+      updateClip();
+    }, 90);
+  }
+
+  function fillBeforeSel() {
+    const sel = $('beforeSel');
+    sel.replaceChildren(...state.list.map((e, i) => {
+      const o = document.createElement('option');
+      o.value = i; o.textContent = e.date + (e.kind === 's2' ? `  ${Math.round(e.cloud)}%` : '');
+      return o;
+    }));
+    sel.value = state.beforeIdx;
+  }
+
+  function resetIndexes() {
+    state.idx = Math.max(0, state.list.length - 1);
+    state.beforeIdx = Math.max(0, state.idx - 1);
+    fillBeforeSel();
+  }
+
+  async function refresh() {
+    const my = ++state.token;
+    const [lat, lon] = state.spot;
+    $('date').textContent = '…';
+    $('meta').textContent = state.mode === 'sharp' ? 'Checking which archive dates have new imagery here…' : 'Finding every satellite pass over this spot (last 2 years)…';
+    try {
+      if (state.mode === 'sharp') {
+        if (!state.releases.length) await loadReleases();
+        if (!state.changes) state.changes = await loadChanges(lat, lon);
+      } else if (!state[state.mode]) {
+        state[state.mode] = await loadScenes(state.mode, lat, lon);
+      }
+    } catch (err) {
+      if (my !== state.token) return;
+      $('meta').textContent = 'Could not reach the imagery service. Check the connection and pick the spot again.';
+      return;
+    }
+    if (my !== state.token) return;
+    buildList(); resetIndexes(); render();
+  }
+
+  function setSpot(lat, lon, name) {
+    state.spot = [lat, lon];
+    state.name = name || '';
+    state.changes = null; state.s2 = null; state.radar = null;
+    pin.setLatLng([lat, lon]);
+    const place = $('place');
+    place.textContent = '';
+    if (name) place.append(name + ' · ');
+    const c = document.createElement('span'); c.className = 'coord'; c.textContent = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    place.append(c);
+    const qs = new URLSearchParams({ at: `${lat.toFixed(5)},${lon.toFixed(5)}`, z: map.getZoom() });
+    if (name) qs.set('name', name);
+    if (params.get('back')) qs.set('back', params.get('back'));
+    history.replaceState(null, '', '?' + qs);
+    syncWatchBtn();
+    refresh();
+  }
+
+  // ---------- events ----------
+  map.on('click', ev => setSpot(ev.latlng.lat, ev.latlng.lng, ''));
+
+  function setMode(m) {
+    if (state.mode === m) return;
+    state.mode = m;
+    $('modeSharp').setAttribute('aria-pressed', m === 'sharp');
+    $('modeS2').setAttribute('aria-pressed', m === 's2');
+    $('modeRadar').setAttribute('aria-pressed', m === 'radar');
+    $('filterSharp').hidden = m !== 'sharp';
+    $('filterFresh').hidden = m !== 's2';
+    if (m !== 'sharp' && map.getZoom() > 16) map.setZoom(16);
+    refresh();
+  }
+  $('modeSharp').onclick = () => setMode('sharp');
+  $('modeS2').onclick = () => setMode('s2');
+  $('modeRadar').onclick = () => setMode('radar');
+  $('hl').onchange = ev => { state.highlight = ev.target.checked; showChange(); };
+  $('onlyNew').onchange = () => { buildList(); resetIndexes(); render(); };
+  $('cloud').onchange = () => { buildList(); resetIndexes(); render(); };
+
+  $('slider').addEventListener('input', ev => { state.idx = Number(ev.target.value); render(); });
+  $('prev').onclick = () => step(-1);
+  $('next').onclick = () => step(1);
+  function step(d) {
+    const ni = state.idx + d;
+    if (ni < 0 || ni >= state.list.length) return;
+    state.idx = ni; render();
+  }
+  $('ticks').addEventListener('click', ev => {
+    const r = ev.currentTarget.getBoundingClientRect();
+    const n = state.list.length; if (!n) return;
+    state.idx = Math.min(n - 1, Math.max(0, Math.floor((ev.clientX - r.left) / r.width * n)));
+    render();
+  });
+  document.addEventListener('keydown', ev => {
+    if (!$('report').hidden) { if (ev.key === 'Escape') $('report').hidden = true; return; }
+    if (ev.target.matches('input[type=search], select')) return;
+    if (ev.key === 'ArrowLeft') { step(-1); ev.preventDefault(); }
+    if (ev.key === 'ArrowRight') { step(1); ev.preventDefault(); }
+  });
+
+  $('compareBtn').onclick = () => {
+    state.compare = !state.compare;
+    $('compareBtn').setAttribute('aria-pressed', state.compare);
+    $('compareRow').classList.toggle('on', state.compare);
+    divider.classList.toggle('on', state.compare);
+    render();
+  };
+  $('beforeSel').onchange = ev => { state.beforeIdx = Number(ev.target.value); render(); };
+
+  $('searchForm').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const q = $('q').value.trim();
+    if (!q) return;
+    const m = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/.exec(q);
+    const zoom = state.mode === 'sharp' ? 17 : 15;
+    if (m) { const lat = +m[1], lon = +m[2]; map.setView([lat, lon], zoom); setSpot(lat, lon, ''); return; }
+    $('place').textContent = 'Searching…';
+    try {
+      const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q)).then(r => r.json());
+      if (!res.length) { $('place').textContent = `No place found for "${q}". Try a fuller address or coordinates.`; return; }
+      const lat = +res[0].lat, lon = +res[0].lon;
+      const name = res[0].display_name.split(',').slice(0, 3).join(',');
+      map.setView([lat, lon], zoom);
+      setSpot(lat, lon, name);
+    } catch {
+      $('place').textContent = 'Search is unavailable right now. Paste coordinates instead, like 32.08, 34.78.';
+    }
+  });
+
+  // ---------- Pro: watched spots ----------
+  // Browser-only for now: remembers spots and shows what's new since you last opened each one.
+  // The Pro server will run the same check on a schedule and send email/phone alerts.
+  const WKEY = 'spotTimeline.watch.v1';
+  const readWatch = () => { try { return JSON.parse(localStorage.getItem(WKEY)) || []; } catch { return []; } };
+  const writeWatch = list => { try { localStorage.setItem(WKEY, JSON.stringify(list)); } catch {} };
+  const spotId = (lat, lon) => lat.toFixed(4) + ',' + lon.toFixed(4);
+  const today = () => new Date().toISOString().slice(0, 10);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  async function newestWaybackKey(lat, lon) {
+    if (!state.releases.length) await loadReleases();
+    const z = 16, { x, y } = tileXY(lat, lon, z);
+    const r = state.releases[state.releases.length - 1];
+    const j = await fetch(`${WAYBACK_TILEMAP}/${r.key}/${z}/${y}/${x}`).then(res => res.json());
+    return String(j.select && j.select[0] != null ? j.select[0] : r.key);
+  }
+
+  function syncWatchBtn() {
+    const list = readWatch();
+    const on = !!state.spot && list.some(w => w.id === spotId(...state.spot));
+    $('watchBtn').setAttribute('aria-pressed', on);
+    $('watchBtn').textContent = on ? '★ Watching' : '☆ Watch this spot';
+    $('watchCount').textContent = list.length;
+  }
+
+  async function seenNow(w) {
+    let wk = w.seen && w.seen.wayback;
+    try { wk = await newestWaybackKey(w.lat, w.lon); } catch {}
+    return { s2: today(), radar: today(), wayback: wk };
+  }
+
+  $('watchBtn').onclick = async () => {
+    const [lat, lon] = state.spot, id = spotId(lat, lon);
+    if (readWatch().some(w => w.id === id)) {
+      writeWatch(readWatch().filter(w => w.id !== id));
+    } else {
+      const w = { id, lat, lon, name: state.name || `${lat.toFixed(4)}, ${lon.toFixed(4)}`, added: today() };
+      $('watchBtn').textContent = 'Saving…';
+      w.seen = await seenNow(w);
+      writeWatch([w, ...readWatch().filter(x => x.id !== id)]);
+    }
+    syncWatchBtn();
+    if (!$('watchBox').hidden) renderWatch();
+  };
+
+  $('listBtn').onclick = () => {
+    const box = $('watchBox');
+    box.hidden = !box.hidden;
+    $('listBtn').setAttribute('aria-expanded', !box.hidden);
+    if (!box.hidden) renderWatch();
+  };
+
+  async function checkNew(w) {
+    const s = w.seen || {};
+    const [s2, rad, wk] = await Promise.allSettled([
+      loadScenes('s2', w.lat, w.lon, s.s2),
+      loadScenes('radar', w.lat, w.lon, s.radar),
+      newestWaybackKey(w.lat, w.lon),
+    ]);
+    const parts = [];
+    if (wk.status === 'fulfilled' && s.wayback && wk.value !== s.wayback) parts.push('new sharp');
+    if (s2.status === 'fulfilled') { const n = s2.value.filter(e => e.cloud < 50).length; if (n) parts.push(`${n} optical`); }
+    if (rad.status === 'fulfilled' && rad.value.length) parts.push(`${rad.value.length} radar`);
+    return parts;
+  }
+
+  function renderWatch() {
+    const list = readWatch(), box = $('watchList');
+    box.replaceChildren();
+    if (!list.length) {
+      const p = document.createElement('div'); p.className = 'note';
+      p.textContent = 'No watched spots yet. Pick a spot and press "Watch this spot".';
+      box.append(p); return;
+    }
+    for (const w of list) {
+      const it = document.createElement('div'); it.className = 'item'; it.tabIndex = 0;
+      it.innerHTML = `<div class="nm">${esc(w.name)}<small>since ${esc((w.seen && w.seen.s2) || w.added)}</small></div><span class="new none">checking…</span><button class="x" type="button" aria-label="Stop watching">×</button>`;
+      const badge = it.querySelector('.new');
+      checkNew(w).then(parts => {
+        badge.textContent = parts.length ? parts.join(' · ') : 'nothing new';
+        badge.classList.toggle('none', !parts.length);
+      }).catch(() => { badge.textContent = 'offline'; });
+      it.querySelector('.x').onclick = ev => {
+        ev.stopPropagation();
+        writeWatch(readWatch().filter(x => x.id !== w.id)); syncWatchBtn(); renderWatch();
+      };
+      const open = async () => {
+        map.setView([w.lat, w.lon], state.mode === 'sharp' ? 17 : 15);
+        setSpot(w.lat, w.lon, w.name);
+        const seen = await seenNow(w);
+        writeWatch(readWatch().map(x => x.id === w.id ? { ...x, seen } : x));
+        badge.textContent = 'seen'; badge.classList.add('none');
+      };
+      it.onclick = open;
+      it.onkeydown = ev => { if (ev.key === 'Enter') open(); };
+      box.append(it);
+    }
+  }
+
+  // ---------- Pro: evidence report ----------
+  // Grabs the same ground area from both dates (3x3 tiles around the spot, cropped to 512 px),
+  // runs the change check on it, hashes every image, and lays it out as a printable report.
+  async function snapshot(e, lat, lon, zWanted) {
+    const z = Math.min(Math.round(zWanted), NATIVE[e.kind]);
+    const n = 2 ** z, r = lat * Math.PI / 180;
+    const fx = (lon + 180) / 360 * n, fy = (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n;
+    const tx = Math.floor(fx), ty = Math.floor(fy);
+    const big = document.createElement('canvas'); big.width = big.height = 768;
+    const g = big.getContext('2d');
+    const tpl = entryUrl(e);
+    let failed = 0;
+    await Promise.all([-1, 0, 1].flatMap(dy => [-1, 0, 1].map(dx => new Promise(res => {
+      const im = new Image(); im.crossOrigin = 'anonymous';
+      im.onload = () => { g.drawImage(im, (dx + 1) * 256, (dy + 1) * 256); res(); };
+      im.onerror = () => { failed++; res(); };
+      im.src = L.Util.template(tpl, { z, x: tx + dx, y: ty + dy });
+    }))));
+    const px = (fx - tx + 1) * 256, py = (fy - ty + 1) * 256;
+    const out = document.createElement('canvas'); out.width = out.height = 512;
+    out.getContext('2d').drawImage(big, px - 256, py - 256, 512, 512, 0, 0, 512, 512);
+    const mPerPx = 156543.03392 * Math.cos(r) / n;
+    return { canvas: out, z, widthM: Math.round(mPerPx * 512), failed };
+  }
+
+  const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  const sha256 = async buf => hex(await crypto.subtle.digest('SHA-256', buf));
+  async function png(canvas) {
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const hash = await sha256(await blob.arrayBuffer());
+    const dataUrl = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+    return { hash, dataUrl };
+  }
+
+  function describe(e) {
+    if (e.kind === 'wayback') return { source: 'Esri World Imagery Wayback', sensor: 'Commercial optical mosaic (Maxar/Vantor, Airbus and others)', id: 'Release ' + e.key, date: e.date, dateNote: 'Release date. The photo itself can be older.', resolution: 'about 0.3 to 0.6 m' };
+    if (e.kind === 's2') return { source: 'Copernicus Sentinel-2 L2A (ESA), via Microsoft Planetary Computer', sensor: 'Sentinel-2 MSI, true colour', id: e.id, date: e.date, dateNote: 'Capture date (UTC).', resolution: '10 m', cloud: Math.round(e.cloud) + '% of scene' };
+    return { source: 'Copernicus Sentinel-1 GRD (ESA), via Microsoft Planetary Computer', sensor: 'Sentinel-1 C-band radar, VV', id: e.id, date: e.date, dateNote: 'Capture date (UTC).', resolution: 'about 10 m', orbit: e.orbit || '' };
+  }
+
+  function rows(d) {
+    const r = [['Date', `${d.date} <span class="sub">(${esc(d.dateNote)})</span>`], ['Source', esc(d.source)], ['Sensor', esc(d.sensor)], ['Scene', `<code>${esc(d.id)}</code>`], ['Resolution', esc(d.resolution)]];
+    if (d.cloud) r.push(['Cloud', esc(d.cloud)]);
+    if (d.orbit) r.push(['Pass', esc(d.orbit)]);
+    r.push(['Image area', `${d.widthM} m wide, tile zoom ${d.zoom}`], ['SHA-256', `<span class="hash">${d.sha256}</span>`]);
+    return r.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('');
+  }
+
+  $('reportBtn').onclick = async () => {
+    let before = state.compare ? state.list[state.beforeIdx] : state.list[state.idx - 1];
+    let after = state.list[state.idx];
+    if (!after || !before || before === after) { $('meta').textContent = 'Pick a spot with at least two dates first.'; return; }
+    if (before.date > after.date) [before, after] = [after, before];
+    const sheet = $('sheet'), rep = $('report');
+    sheet.innerHTML = '<h1 id="repTitle">Building evidence report…</h1><p class="sub">Fetching both images, checking for change, hashing.</p>';
+    rep.hidden = false;
+    try {
+      const [lat, lon] = state.spot;
+      const [A, B] = await Promise.all([snapshot(before, lat, lon, map.getZoom()), snapshot(after, lat, lon, map.getZoom())]);
+      const ga = A.canvas.getContext('2d').getImageData(0, 0, 512, 512).data;
+      const gb = B.canvas.getContext('2d').getImageData(0, 0, 512, 512).data;
+      const mask = document.createElement('canvas'); mask.width = mask.height = 512;
+      const md = mask.getContext('2d').createImageData(512, 512);
+      const th = TH[after.kind];
+      const share = diffInto(lumOf(ga, 262144), lumOf(gb, 262144), 512, th, md.data);
+      mask.getContext('2d').putImageData(md, 0, 0);
+      const C = document.createElement('canvas'); C.width = C.height = 512;
+      const cg = C.getContext('2d'); cg.drawImage(B.canvas, 0, 0); cg.drawImage(mask, 0, 0);
+      const [pa, pb, pc] = await Promise.all([png(A.canvas), png(B.canvas), png(C)]);
+      const generated = new Date().toISOString();
+      const link = `${location.origin}${location.pathname}?at=${lat.toFixed(5)},${lon.toFixed(5)}&z=${map.getZoom()}`;
+      const reportId = (await sha256(new TextEncoder().encode([generated, lat, lon, pa.hash, pb.hash, pc.hash].join('|')))).slice(0, 12).toUpperCase();
+      const method = `Both images cover the same ${B.widthM} m square centred on the spot. Brightness of each image is normalised (z-score) so lighting and haze differences count less, then 4×4 pixel blocks are compared. Blocks whose mean difference is above ${th} standard deviations are marked magenta.`;
+      const limits = [
+        'Hashes prove these files have not changed since this report was made. They do not prove chain of custody before that. The Pro server adds an RFC-3161 trusted timestamp and keeps the originals.',
+        after.kind === 'wayback' ? 'Wayback release dates are when Esri published the mosaic, not when the photo was taken.' : 'Free 10 m imagery shows buildings, roads, burn scars and large debris. It cannot show people or cars.',
+        'Automatic change marks are a lead for a human to check, not a finding. Shadows, season, viewing angle and clouds can all cause marks.',
+      ];
+      if (A.failed || B.failed) limits.push(`${A.failed + B.failed} of 18 image tiles failed to load and are blank.`);
+      const pkg = {
+        type: 'spot-timeline-evidence', version: 1, reportId, generated,
+        spot: { name: state.name || '', lat: +lat.toFixed(6), lon: +lon.toFixed(6), link },
+        before: { ...describe(before), zoom: A.z, widthM: A.widthM, sha256: pa.hash },
+        after: { ...describe(after), zoom: B.z, widthM: B.widthM, sha256: pb.hash },
+        change: { method, threshold: th, changedShare: +share.toFixed(4), sha256: pc.hash },
+        limitations: limits,
+        images: { before: pa.dataUrl, after: pb.dataUrl, change: pc.dataUrl },
+      };
+      const days = Math.round((Date.parse(after.date) - Date.parse(before.date)) / 86400000);
+      sheet.innerHTML = `
+        <h1 id="repTitle">Spot evidence report</h1>
+        <div class="sub">Report ${reportId} · made ${generated.replace('T', ' ').slice(0, 19)} UTC · Spot Timeline</div>
+        <h2>Location</h2>
+        <table>
+          <tr><th>Place</th><td>${esc(state.name || 'Picked on map')}</td></tr>
+          <tr><th>Coordinates</th><td><code>${lat.toFixed(6)}, ${lon.toFixed(6)}</code> (WGS84)</td></tr>
+          <tr><th>Link</th><td><code>${esc(link)}</code></td></tr>
+        </table>
+        <h2>Images</h2>
+        <div class="imgs">
+          <figure><div class="frame"><img src="${pa.dataUrl}" alt="Before, ${before.date}"></div><figcaption>BEFORE · ${before.date}</figcaption></figure>
+          <figure><div class="frame"><img src="${pb.dataUrl}" alt="After, ${after.date}"></div><figcaption>AFTER · ${after.date}</figcaption></figure>
+          <figure><div class="frame"><img src="${pc.dataUrl}" alt="Change marked in magenta"></div><figcaption>CHANGE · magenta = differs</figcaption></figure>
+        </div>
+        <h2>Change</h2>
+        <p><span class="big">${(share * 100).toFixed(1)}%</span> of the area is marked as changed over ${days} days (${before.date} → ${after.date}).</p>
+        <p>${esc(method)}</p>
+        <h2>Before</h2><table>${rows(pkg.before)}</table>
+        <h2>After</h2><table>${rows(pkg.after)}</table>
+        <h2>Change image</h2><table><tr><th>SHA-256</th><td><span class="hash">${pc.hash}</span></td></tr></table>
+        <h2>Limits</h2>
+        <div class="warn">${limits.map(esc).join('<br><br>')}</div>
+        <div class="actions">
+          <button class="btn primary" type="button" id="repJson">Download evidence package (.json)</button>
+          <button class="btn" type="button" id="repPrint">Print / save PDF</button>
+          <button class="btn" type="button" id="repClose">Close</button>
+        </div>`;
+      $('repJson').onclick = () => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(pkg, null, 2)], { type: 'application/json' }));
+        a.download = `spot-evidence-${after.date}-${reportId}.json`;
+        a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      };
+      $('repPrint').onclick = () => window.print();
+      $('repClose').onclick = () => { rep.hidden = true; };
+      $('repClose').focus();
+    } catch (err) {
+      sheet.innerHTML = `<h1 id="repTitle">Could not build the report</h1><p>${esc(err.message || err)}</p><div class="actions"><button class="btn" type="button" id="repClose">Close</button></div>`;
+      $('repClose').onclick = () => { rep.hidden = true; };
+    }
+  };
+  $('report').addEventListener('click', ev => { if (ev.target.id === 'report') $('report').hidden = true; });
+
+  // Opened from Sightline: show a way back to its analysis (same site only).
+  try {
+    const back = new URL(params.get('back') || '', location.href);
+    if (params.get('back') && back.origin === location.origin) { $('backLink').href = back.href; $('backLink').hidden = false; }
+  } catch {}
+
+  setSpot(start[0], start[1], at.length === 2 ? (params.get('name') || '').slice(0, 120) : 'Rabin Square, Tel Aviv');
+})();
+</script>
+</body>
+</html>

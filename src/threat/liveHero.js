@@ -18,6 +18,7 @@ const HEX = { high: '#ff3b30', medium: '#ff8a00', low: '#ffd23f' };
 
 /**
  * @param {object} o
+ * @param {boolean} [o.paper]  light "paper" look: white blocks, ink lines, hatched light
  * @param {any} o.Cesium
  * @param {any} o.viewer
  * @param {{toLatLon:Function,toLocal:Function}} o.proj  local metres ↔ lat/lon
@@ -29,7 +30,7 @@ const HEX = { high: '#ff3b30', medium: '#ff8a00', low: '#ffd23f' };
  * @param {(c:object)=>void} o.onUpdate  live counts
  * @param {(spot:{lat:number,lon:number})=>void} o.onOpen  "full analysis here"
  */
-export function createLiveHero({ Cesium, viewer, proj, buildings, ground, h0, halfSize, host, onUpdate, onOpen }) {
+export function createLiveHero({ paper = false, Cesium, viewer, proj, buildings, ground, h0, halfSize, host, onUpdate, onOpen }) {
   const scene = viewer.scene;
   const norm = buildings
     .map((b) => ({ ...b, ring: normalizeRing(b.ring) }))
@@ -46,8 +47,10 @@ export function createLiveHero({ Cesium, viewer, proj, buildings, ground, h0, ha
   const isOpen = (x, y) => Math.hypot(x, y) <= reach && gridHeightAt(g, x, y) < groundAt(ground, x, y) + 0.5;
 
   // ── 3D buildings: one primitive, recoloured per building as you move ──
-  const DARK = Cesium.Color.fromCssColorString('#1d222b');
-  const BAND = { high: Cesium.Color.fromCssColorString(HEX.high), medium: Cesium.Color.fromCssColorString(HEX.medium), low: Cesium.Color.fromCssColorString(HEX.low) };
+  const DARK = Cesium.Color.fromCssColorString(paper ? '#f7f7f5' : '#1d222b');
+  // Paper: lighter tints so the blocks read as marked, not painted over.
+  const tint = (hex) => { const c = Cesium.Color.fromCssColorString(hex); return paper ? Cesium.Color.lerp(c, Cesium.Color.WHITE, 0.3, new Cesium.Color()) : c; };
+  const BAND = { high: tint(HEX.high), medium: tint(HEX.medium), low: tint(HEX.low) };
   const pos = (x, y, z) => {
     const [lat, lon] = proj.toLatLon(x, y);
     return Cesium.Cartesian3.fromDegrees(lon, lat, h0 + z);
@@ -86,9 +89,12 @@ export function createLiveHero({ Cesium, viewer, proj, buildings, ground, h0, ha
   chip.textContent = 'Full analysis here →';
   host.appendChild(chip);
 
+  const INK = '#111';
+  let hatchPat = null;
   let dpr = 1;
   const resize = () => {
     dpr = Math.min(2, window.devicePixelRatio || 1);
+    hatchPat = null;
     cv.width = innerWidth * dpr; cv.height = innerHeight * dpr;
     cv.style.width = innerWidth + 'px'; cv.style.height = innerHeight + 'px';
   };
@@ -148,6 +154,52 @@ export function createLiveHero({ Cesium, viewer, proj, buildings, ground, h0, ha
     if (a) a.color = Cesium.ColorGeometryInstanceAttribute.toValue(color, a.color);
   }
 
+  function hatch() {
+    if (hatchPat) return hatchPat;
+    const t = document.createElement('canvas');
+    const n = Math.round(7 * dpr);
+    t.width = t.height = n;
+    const c = t.getContext('2d');
+    c.strokeStyle = 'rgba(255,59,48,0.45)';
+    c.lineWidth = 1 * dpr;
+    c.beginPath(); c.moveTo(0, n); c.lineTo(n, 0); c.moveTo(-n / 2, n / 2); c.lineTo(n / 2, -n / 2); c.moveTo(n / 2, n * 1.5); c.lineTo(n * 1.5, n / 2); c.stroke();
+    hatchPat = ctx.createPattern(t, 'repeat');
+    return hatchPat;
+  }
+  // Paper: dashed range rings around you, labelled like a survey drawing.
+  function rings(c0) {
+    ctx.save();
+    ctx.font = `500 ${10 * dpr}px "JetBrains Mono", monospace`;
+    ctx.textBaseline = 'middle';
+    for (const m of [100, 200, 300]) {
+      const pts = [];
+      for (let i = 0; i <= 96; i++) {
+        const a = (i / 96) * Math.PI * 2;
+        const p = toScreen(you.x + Math.sin(a) * m, you.y + Math.cos(a) * m, res.ground0 + 0.2);
+        if (p) pts.push(p);
+      }
+      if (pts.length < 10) continue;
+      ctx.strokeStyle = 'rgba(17,17,17,0.35)';
+      ctx.lineWidth = 1 * dpr;
+      ctx.setLineDash([3 * dpr, 4 * dpr]);
+      ctx.beginPath();
+      pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const lp = toScreen(you.x + m * 0.6, you.y - m * 0.8, res.ground0 + 0.2);
+      if (!lp) continue;
+      const text = `${m} m`;
+      const w = ctx.measureText(text).width + 10 * dpr, h = 16 * dpr;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(lp[0] - w / 2, lp[1] - h / 2, w, h);
+      ctx.strokeStyle = 'rgba(17,17,17,0.5)';
+      ctx.strokeRect(lp[0] - w / 2 + 0.5, lp[1] - h / 2 + 0.5, w - 1, h - 1);
+      ctx.fillStyle = INK;
+      ctx.fillText(text, lp[0] - w / 2 + 5 * dpr, lp[1] + 0.5);
+    }
+    ctx.restore();
+  }
+
   const toScreen = (x, y, z) => {
     const p = Cesium.SceneTransforms.worldToWindowCoordinates(scene, pos(x, y, z));
     return p ? [p.x * dpr, p.y * dpr] : null;
@@ -169,17 +221,37 @@ export function createLiveHero({ Cesium, viewer, proj, buildings, ground, h0, ha
     const edge = toScreen(tx + LIVE_RADIUS, ty, ground0);
     const rPx = edge ? Math.hypot(edge[0] - c0[0], edge[1] - c0[1]) : 300 * dpr;
     ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
+    if (paper) {
+      // Paper: the street area you can be seen from, tinted and hatched in red.
+      ctx.beginPath();
+      pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+      const tint = ctx.createRadialGradient(c0[0], c0[1], 0, c0[0], c0[1], rPx);
+      tint.addColorStop(0, 'rgba(255,59,48,0.30)');
+      tint.addColorStop(1, 'rgba(255,59,48,0.08)');
+      ctx.fillStyle = tint;
+      ctx.fill();
+      ctx.fillStyle = hatch();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,59,48,0.55)';
+      ctx.lineWidth = 1 * dpr;
+      ctx.stroke();
+      ctx.restore();
+      ctx.save();
+    }
+    ctx.globalCompositeOperation = paper ? 'source-over' : 'lighter';
     const grad = ctx.createRadialGradient(c0[0], c0[1], 0, c0[0], c0[1], rPx);
     grad.addColorStop(0, 'rgba(255,245,235,0.8)');
     grad.addColorStop(0.2, 'rgba(255,130,95,0.42)');
     grad.addColorStop(0.7, 'rgba(255,70,45,0.14)');
     grad.addColorStop(1, 'rgba(255,60,40,0.04)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-    ctx.closePath();
-    ctx.fill();
+    if (!paper) {
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+      ctx.fill();
+    }
     // Every building that sees you: a glowing point at its closest spot.
     for (const s of res.near) {
       const p = toScreen(s.x, s.y, s.z);
@@ -190,6 +262,8 @@ export function createLiveHero({ Cesium, viewer, proj, buildings, ground, h0, ha
     }
     ctx.restore();
 
+    if (paper) rings(c0);
+
     // The two closest clear shots: a line to you and a tag.
     ctx.save();
     ctx.font = `600 ${11 * dpr}px "JetBrains Mono", monospace`;
@@ -198,9 +272,9 @@ export function createLiveHero({ Cesium, viewer, proj, buildings, ground, h0, ha
     for (const s of res.near.slice(0, 2)) {
       const p = toScreen(s.x, s.y, s.z);
       if (!p) continue;
-      ctx.strokeStyle = HEX[s.band];
+      ctx.strokeStyle = paper ? INK : HEX[s.band];
       ctx.lineWidth = 1.5 * dpr;
-      ctx.setLineDash([5 * dpr, 4 * dpr]);
+      ctx.setLineDash(paper ? [] : [5 * dpr, 4 * dpr]);
       ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(c0[0], c0[1]); ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = HEX[s.band];
@@ -217,11 +291,12 @@ export function createLiveHero({ Cesium, viewer, proj, buildings, ground, h0, ha
       // Keep the two tags from sitting on top of each other.
       for (const o of boxes) if (bx < o[0] + o[2] && o[0] < bx + w && Math.abs(by - o[1]) < h + 6 * dpr) by = o[1] + (by >= o[1] ? 1 : -1) * (h + 6 * dpr);
       boxes.push([bx, by, w]);
-      ctx.fillStyle = 'rgba(8,10,14,0.92)';
+      ctx.fillStyle = paper ? '#fff' : 'rgba(8,10,14,0.92)';
       ctx.fillRect(bx, by, w, h);
+      if (paper) { ctx.strokeStyle = INK; ctx.lineWidth = 1 * dpr; ctx.strokeRect(bx + 0.5, by + 0.5, w - 1, h - 1); }
       ctx.fillStyle = HEX[s.band];
       ctx.fillRect(left ? bx + w - 3 * dpr : bx, by, 3 * dpr, h);
-      ctx.fillStyle = '#fff';
+      ctx.fillStyle = paper ? INK : '#fff';
       ctx.fillText(text, bx + 8 * dpr, by + h / 2 + 0.5);
     }
     ctx.restore();
@@ -229,14 +304,14 @@ export function createLiveHero({ Cesium, viewer, proj, buildings, ground, h0, ha
     // You: a white dot with a breathing ring.
     const pulse = (t / 1400) % 1;
     ctx.save();
-    ctx.strokeStyle = `rgba(255,255,255,${0.7 * (1 - pulse)})`;
+    ctx.strokeStyle = paper ? `rgba(17,17,17,${0.6 * (1 - pulse)})` : `rgba(255,255,255,${0.7 * (1 - pulse)})`;
     ctx.lineWidth = 2 * dpr;
     ctx.beginPath(); ctx.arc(c0[0], c0[1], (10 + pulse * 22) * dpr, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = '#fff';
-    ctx.shadowColor = 'rgba(255,90,60,0.9)'; ctx.shadowBlur = 14 * dpr;
+    ctx.shadowColor = paper ? 'rgba(0,0,0,0.25)' : 'rgba(255,90,60,0.9)'; ctx.shadowBlur = (paper ? 6 : 14) * dpr;
     ctx.beginPath(); ctx.arc(c0[0], c0[1], 6 * dpr, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = pinned ? '#ff6b4a' : '#0b0e13';
+    ctx.strokeStyle = pinned ? '#ff3b30' : paper ? INK : '#0b0e13';
     ctx.lineWidth = 2 * dpr;
     ctx.stroke();
     ctx.restore();
