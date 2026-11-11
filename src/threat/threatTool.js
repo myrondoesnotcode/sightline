@@ -82,7 +82,9 @@ export function initThreatTool({ viewer, tileset, mapStackController }) {
     for (let i = 0; i < L.length; i++) {
       const l = L.get(i);
       if (l.imageryProvider === satProvider) continue;
-      if (state.dark) { l.saturation = 0; l.brightness = 0.3; l.contrast = 1.8; l.gamma = 1.15; }
+      // Landing: the light "paper" map (pale grey streets, white blocks).
+      if (document.body.classList.contains('landing')) { l.saturation = 0; l.brightness = 1.22; l.contrast = 0.42; l.gamma = 0.9; }
+      else if (state.dark) { l.saturation = 0; l.brightness = 0.3; l.contrast = 1.8; l.gamma = 1.15; }
       else { l.saturation = 1; l.brightness = 1; l.contrast = 1; l.gamma = 1; }
     }
   }
@@ -738,8 +740,7 @@ export function initThreatTool({ viewer, tileset, mapStackController }) {
     </header>
     <div class="threat-body">
       <div class="sl-hero-head">
-        <span class="sl-kicker">SIGHTLINE</span>
-        <h1 class="sl-h1">See who can<br />see <em>you</em>.</h1>
+        <h1 class="sl-h1">See who can<br />see you.</h1>
         <p class="sl-lede">Type any address. Every window and rooftop with a clear line of sight lights up in 3D. Plan the day, brief the team, send one link.</p>
       </div>
       <div class="threat-intro">
@@ -1607,7 +1608,7 @@ export function initThreatTool({ viewer, tileset, mapStackController }) {
       heroCamera();
       clearScene();
       live = createLiveHero({
-        Cesium, viewer, proj: state.proj, buildings: state.buildings, ground: state.ground,
+        paper: true, Cesium, viewer, proj: state.proj, buildings: state.buildings, ground: state.ground,
         h0: t.h0, halfSize: state.radius + 60, host,
         onUpdate: fillLive,
         onOpen: ({ lat, lon }) => { stopLive(); exitLanding(); input.value = ''; analyzeAt({ lat, lon, label: null }); },
@@ -1630,7 +1631,7 @@ export function initThreatTool({ viewer, tileset, mapStackController }) {
     const t = state.target;
     const center = Cesium.Cartesian3.fromDegrees(t.lon, t.lat, t.h0);
     const range = narrow() ? 1250 : 900;
-    viewer.camera.lookAt(center, new Cesium.HeadingPitchRange(Cesium.Math.toRadians(15), Cesium.Math.toRadians(-62), range));
+    viewer.camera.lookAt(center, new Cesium.HeadingPitchRange(Cesium.Math.toRadians(15), Cesium.Math.toRadians(-68), range));
     if (narrow()) viewer.camera.moveUp(range * 0.36);
     else viewer.camera.moveLeft(range * 0.32);
     viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
@@ -1707,6 +1708,8 @@ export function initThreatTool({ viewer, tileset, mapStackController }) {
     unmountLanding = null;
     stat.remove();
     tag.remove();
+    styleBase();
+    render();
     showHint();
     showKey();
   }
@@ -1724,6 +1727,7 @@ export function initThreatTool({ viewer, tileset, mapStackController }) {
   const q0 = new URLSearchParams(window.location.search);
   if (!q0.get('at') && !q0.has('app')) {
     document.body.classList.add('landing');
+    styleBase();
     if (photoreal()) setReal(false);
     $('.threat-body').appendChild(stat);
     document.body.appendChild(tag);
