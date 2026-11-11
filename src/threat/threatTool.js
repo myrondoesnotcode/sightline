@@ -622,6 +622,9 @@ export function initThreatTool({ viewer, tileset, mapStackController }) {
     L.push('CORDON');
     L.push(`Rings drawn at ${RINGS_M.filter((r) => r <= state.radius).join(' / ')} m.`);
     L.push('');
+    L.push('SATELLITE HISTORY');
+    L.push(timelineUrl(false));
+    L.push('');
     L.push('LIMITS');
     L.push(`Buildings from OpenStreetMap via OpenFreeMap (${result.buildingCount} footprint parts); ${dataQuality(result)}. Trees, walls and vehicles not modelled, so real exposure may be lower. Planning aid only: walk the site.`);
     return L.join('\n');
@@ -777,6 +780,7 @@ export function initThreatTool({ viewer, tileset, mapStackController }) {
         </div>
         <div class="threat-actions">
           <button type="button" class="threat-pdf">PDF brief</button>
+          <button type="button" class="threat-history" title="Satellite images of this spot over the years">Satellite history ↗</button>
           <button type="button" class="threat-share">Share link</button>
           <button type="button" class="threat-copy">Copy brief</button>
           <button type="button" class="threat-clear" aria-label="Start over">Start over</button>
@@ -955,6 +959,22 @@ export function initThreatTool({ viewer, tileset, mapStackController }) {
     if (name && name !== 'My location') u.searchParams.set('name', name);
     return u.toString();
   }
+  // Spot Timeline (public/timeline/): every satellite date for this spot, before/after, evidence report.
+  // Source of truth: Computer Work/spot-timeline/index.html, copied here by its sync.sh.
+  function timelineUrl(withBack = true) {
+    const { target } = state;
+    const u = new URL('timeline/index.html', new URL(import.meta.env.BASE_URL || '/', window.location.origin));
+    u.searchParams.set('at', `${target.lat.toFixed(5)},${target.lon.toFixed(5)}`);
+    u.searchParams.set('z', '17');
+    const name = (target.label || '').replace(/ \(my location\)$/, '');
+    if (name && name !== 'My location') u.searchParams.set('name', name);
+    if (withBack) u.searchParams.set('back', shareUrl());
+    return u.toString();
+  }
+  $('.threat-history').addEventListener('click', () => {
+    if (!state.target) return;
+    window.open(timelineUrl(), '_blank', 'noopener');
+  });
   $('.threat-share').addEventListener('click', async () => {
     if (!state.target) return;
     const url = shareUrl();
